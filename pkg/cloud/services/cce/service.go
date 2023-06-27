@@ -3,28 +3,35 @@ package cce
 import (
 	"context"
 	"fmt"
-	eipmodel "github.com/huaweicloud/huaweicloud-sdk-go-v3/services/eip/v2/model"
-	"k8s.io/utils/pointer"
 	"net/url"
 	"strconv"
 	"time"
 
-	infrastructurev1beta1 "github.com/alauda/cluster-api-provider-cce/api/v1beta1"
-	"github.com/alauda/cluster-api-provider-cce/pkg/cloud/scope"
 	"github.com/huaweicloud/huaweicloud-sdk-go-v3/core/auth/basic"
 	"github.com/huaweicloud/huaweicloud-sdk-go-v3/core/sdkerr"
 	cce "github.com/huaweicloud/huaweicloud-sdk-go-v3/services/cce/v3"
 	ccemodel "github.com/huaweicloud/huaweicloud-sdk-go-v3/services/cce/v3/model"
 	cceregion "github.com/huaweicloud/huaweicloud-sdk-go-v3/services/cce/v3/region"
 	eip "github.com/huaweicloud/huaweicloud-sdk-go-v3/services/eip/v2"
+	eipmodel "github.com/huaweicloud/huaweicloud-sdk-go-v3/services/eip/v2/model"
 	eipregion "github.com/huaweicloud/huaweicloud-sdk-go-v3/services/eip/v2/region"
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/tools/clientcmd"
+	"k8s.io/client-go/tools/clientcmd/api"
 	"k8s.io/klog/v2"
+	"k8s.io/utils/pointer"
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 	"sigs.k8s.io/cluster-api/util/conditions"
+	"sigs.k8s.io/cluster-api/util/kubeconfig"
 	"sigs.k8s.io/cluster-api/util/record"
+	"sigs.k8s.io/cluster-api/util/secret"
+
+	infrastructurev1beta1 "github.com/alauda/cluster-api-provider-cce/api/v1beta1"
+	"github.com/alauda/cluster-api-provider-cce/pkg/cloud/scope"
 )
 
 type Service struct {
@@ -36,15 +43,20 @@ type Service struct {
 type ServiceOpts func(s *Service)
 
 func NewService(controlPlaneScope *scope.ManagedControlPlaneScope, opts ...ServiceOpts) (*Service, error) {
-	secret := corev1.Secret{}
-	err := controlPlaneScope.Client.Get(context.TODO(), types.NamespacedName{}, &secret)
+	sec := &corev1.Secret{}
+	err := controlPlaneScope.Client.Get(context.TODO(), types.NamespacedName{
+		Name:      controlPlaneScope.ControlPlane.Spec.IdentityRef.Name,
+		Namespace: controlPlaneScope.ControlPlane.Spec.IdentityRef.Namespace,
+	}, sec)
 	if err != nil {
 		return nil, err
 	}
 
+	controlPlaneScope.Debug("secret", "accessKey", string(sec.Data["accessKey"]), "secretKey", string(sec.Data["secretKey"]))
+
 	auth := basic.NewCredentialsBuilder().
-		WithAk(string(secret.Data["ak"])).
-		WithSk(string(secret.Data["sk"])).
+		WithAk(string(sec.Data["accessKey"])).
+		WithSk(string(sec.Data["secretKey"])).
 		Build()
 
 	cceClient := cce.NewCceClient(
@@ -90,11 +102,16 @@ func (s *Service) ReconcileControlPlane(ctx context.Context) error {
 func (s *Service) reconcileCluster(ctx context.Context) error {
 	s.scope.Debug("Reconciling CCE cluster")
 
-	var clusterStatus *ccemodel.ClusterStatus
-
-	cluster, err := s.showCCECluster(s.scope.InfraClusterID())
-	if err != nil {
-		return errors.Wrap(err, "failed to show cce clusters")
+	var (
+		cluster       *ccemodel.ShowClusterResponse
+		clusterStatus *ccemodel.ClusterStatus
+		err           error
+	)
+	if s.scope.InfraClusterID() != "" {
+		cluster, err = s.showCCECluster(s.scope.InfraClusterID())
+		if err != nil {
+			return errors.Wrap(err, "failed to show cce clusters")
+		}
 	}
 	if cluster == nil {
 		created, err := s.createCluster()
@@ -128,11 +145,6 @@ func (s *Service) reconcileCluster(ctx context.Context) error {
 
 	s.scope.Debug("EKS Control Plane active", "endpoint", *cluster.Status.Endpoints)
 
-	// s.scope.ControlPlane.Spec.ControlPlaneEndpoint = clusterv1.APIEndpoint{
-	// 	Host: *cluster.Endpoint,
-	// 	Port: 443,
-	// }
-
 	if err := s.reconcileEIP(ctx); err != nil {
 		return errors.Wrap(err, "failed reconciling EIP")
 	}
@@ -145,46 +157,73 @@ func (s *Service) reconcileCluster(ctx context.Context) error {
 	if cluster.Status.Endpoints != nil {
 		for _, ep := range *cluster.Status.Endpoints {
 			if *ep.Type == "Internal" {
-				u, err := url.Parse(*ep.Url)
+				host, port, err := parseURL(*ep.Url)
 				if err != nil {
-					return errors.Wrap(err, "failed to pase url")
-				}
-				port, err := strconv.Atoi(u.Port())
-				if err != nil {
-					return errors.Wrap(err, "String to int conversion error")
+					return err
 				}
 				s.scope.ControlPlane.Spec.ControlPlaneEndpoint = clusterv1.APIEndpoint{
-					Host: u.Hostname(),
+					Host: host,
 					Port: int32(port),
 				}
 			}
-
+		}
+		for _, ep := range *cluster.Status.Endpoints {
 			if *ep.Type == "External" {
-				u, err := url.Parse(*ep.Url)
+				host, port, err := parseURL(*ep.Url)
 				if err != nil {
-					return errors.Wrap(err, "failed to pase url")
-				}
-				port, err := strconv.Atoi(u.Port())
-				if err != nil {
-					return errors.Wrap(err, "String to int conversion error")
+					return err
 				}
 				s.scope.ControlPlane.Spec.ControlPlaneEndpoint = clusterv1.APIEndpoint{
-					Host: u.Hostname(),
+					Host: host,
 					Port: int32(port),
 				}
 			}
 		}
 	}
 
-	// if err := s.reconcileKubeconfig(ctx, cluster); err != nil {
-	// 	return errors.Wrap(err, "failed reconciling kubeconfig")
-	// }
+	if err := s.reconcileKubeconfig(ctx, cluster); err != nil {
+		return errors.Wrap(err, "failed reconciling kubeconfig")
+	}
+
+	return nil
+}
+
+func (s *Service) reconcileKubeconfig(ctx context.Context, cluster *ccemodel.ShowClusterResponse) error {
+	s.scope.Debug("Reconciling CCE kubeconfigs for cluster", "cluster-name", s.scope.InfraClusterName())
+
+	clusterRef := types.NamespacedName{
+		Name:      s.scope.Cluster.Name,
+		Namespace: s.scope.Cluster.Namespace,
+	}
+
+	// Create the kubeconfig used by CAPI
+	configSecret, err := secret.GetFromNamespacedName(ctx, s.scope.Client, clusterRef, secret.Kubeconfig)
+	if err != nil {
+		if !apierrors.IsNotFound(err) {
+			return errors.Wrap(err, "failed to get kubeconfig secret")
+		}
+
+		if createErr := s.createCAPIKubeconfigSecret(
+			ctx,
+			cluster,
+			&clusterRef,
+		); createErr != nil {
+			return fmt.Errorf("creating kubeconfig secret: %w", err)
+		}
+	} else if updateErr := s.updateCAPIKubeconfigSecret(ctx, configSecret, cluster); updateErr != nil {
+		return fmt.Errorf("updating kubeconfig secret: %w", err)
+	}
+
+	// Set initialized to true to indicate the kubconfig has been created
+	s.scope.ControlPlane.Status.Initialized = true
 
 	return nil
 }
 
 func (s *Service) reconcileEIP(ctx context.Context) error {
 	s.scope.Info("Reconciling CCE  bind EIP", "cluster-name", pointer.StringDeref(pointer.String(s.scope.InfraClusterName()), ""))
+
+	// create EIP
 	eipReq := &eipmodel.CreatePublicipRequest{}
 	publicipbody := &eipmodel.CreatePublicipOption{
 		Type: "5_bgp",
@@ -281,22 +320,22 @@ func (s *Service) createCluster() (*ccemodel.CreateClusterResponse, error) {
 		Mode: ccemodel.GetContainerNetworkModeEnum().VPC_ROUTER,
 	}
 	hostNetworkSpec := &ccemodel.HostNetwork{
-		Vpc:    "0f902bd6-393a-4113-85d7-dc0e21ec3873",
-		Subnet: "888fb6ce-02ee-4f3f-885b-94cedf540f0a",
+		Vpc:    s.scope.ControlPlane.Spec.HostNetwork.Vpc,
+		Subnet: s.scope.ControlPlane.Spec.HostNetwork.Subnet,
 	}
 	specbody := &ccemodel.ClusterSpec{
-		Flavor:           "cce.s2.small:",
+		Flavor:           *s.scope.ControlPlane.Spec.Flavor,
 		HostNetwork:      hostNetworkSpec,
 		ContainerNetwork: containerNetworkSpec,
 	}
 	metadatabody := &ccemodel.ClusterMetadata{
-		Name: "cluster-name1",
+		Name: *s.scope.ControlPlane.Spec.ClusterName,
 	}
 	request.Body = &ccemodel.Cluster{
 		Spec:       specbody,
 		Metadata:   metadatabody,
 		ApiVersion: "v3",
-		Kind:       "cluster",
+		Kind:       "Cluster",
 	}
 	response, err := s.CCEClient.CreateCluster(request)
 	if err != nil {
@@ -342,6 +381,141 @@ func (s *Service) setStatus(status *ccemodel.ClusterStatus) error {
 	return nil
 }
 
+func (s *Service) createCAPIKubeconfigSecret(ctx context.Context, cluster *ccemodel.ShowClusterResponse, clusterRef *types.NamespacedName) error {
+	controllerOwnerRef := *metav1.NewControllerRef(s.scope.ControlPlane, infrastructurev1beta1.GroupVersion.WithKind("CCEManagedControlPlane"))
+
+	clusterName := s.scope.InfraClusterName()
+	userName := s.getKubeConfigUserName(clusterName, false)
+
+	cfg, err := s.createBaseKubeConfig(cluster, userName)
+	if err != nil {
+		return fmt.Errorf("creating base kubeconfig: %w", err)
+	}
+
+	//token, err := s.generateToken()
+	//if err != nil {
+	//	return fmt.Errorf("generating presigned token: %w", err)
+	//}
+
+	//cfg.AuthInfos = map[string]*api.AuthInfo{
+	//	userName: {
+	//		Token: token,
+	//	},
+	//}
+
+	out, err := clientcmd.Write(*cfg)
+	if err != nil {
+		return errors.Wrap(err, "failed to serialize config to yaml")
+	}
+
+	kubeconfigSecret := kubeconfig.GenerateSecretWithOwner(*clusterRef, out, controllerOwnerRef)
+	if err := s.scope.Client.Create(ctx, kubeconfigSecret); err != nil {
+		return errors.Wrap(err, "failed to create kubeconfig secret")
+	}
+
+	record.Eventf(s.scope.ControlPlane, "SucessfulCreateKubeconfig", "Created kubeconfig for cluster %q", s.scope.InfraClusterName())
+	return nil
+}
+
+func (s *Service) getKubeConfigUserName(clusterName string, isUser bool) string {
+	if isUser {
+		return fmt.Sprintf("%s-user", clusterName)
+	}
+
+	return fmt.Sprintf("%s-capi-admin", clusterName)
+}
+
+func (s *Service) createBaseKubeConfig(cluster *ccemodel.ShowClusterResponse, userName string) (*api.Config, error) {
+	clusterName := s.scope.InfraClusterName()
+	contextName := fmt.Sprintf("%s@%s", userName, clusterName)
+
+	// create cce cert
+	clientCertificateData, clientKeyData, err := s.generateClientData()
+	if err != nil {
+		return nil, err
+	}
+
+	cfg := &api.Config{
+		APIVersion: api.SchemeGroupVersion.Version,
+		Clusters: map[string]*api.Cluster{
+			clusterName: {
+				Server:                fmt.Sprintf("https://%s", s.scope.ControlPlane.Spec.ControlPlaneEndpoint.String()),
+				InsecureSkipTLSVerify: true,
+				// CertificateAuthorityData: certData,
+			},
+		},
+		Contexts: map[string]*api.Context{
+			contextName: {
+				Cluster:  clusterName,
+				AuthInfo: userName,
+			},
+		},
+		CurrentContext: contextName,
+		AuthInfos: map[string]*api.AuthInfo{
+			userName: {
+				ClientCertificateData: clientCertificateData,
+				ClientKeyData:         clientKeyData,
+			},
+		},
+	}
+
+	return cfg, nil
+}
+
+func (s *Service) generateClientData() ([]byte, []byte, error) {
+	certReq := &ccemodel.CreateKubernetesClusterCertRequest{}
+	certReq.ClusterId = s.scope.InfraClusterID()
+	certReq.Body = &ccemodel.CertDuration{
+		Duration: int32(10 * 365),
+	}
+	certResp, err := s.CCEClient.CreateKubernetesClusterCert(certReq)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to create CCE cluster cert: %w", err)
+	}
+
+	clientCertificateData := (*certResp.Users)[0].User.ClientCertificateData
+	clientKeyData := (*certResp.Users)[0].User.ClientKeyData
+
+	return []byte(*clientCertificateData), []byte(*clientKeyData), nil
+}
+
+func (s *Service) updateCAPIKubeconfigSecret(ctx context.Context, configSecret *corev1.Secret, cluster *ccemodel.ShowClusterResponse) error {
+	s.scope.Debug("Updating CCE kubeconfigs for cluster", "cluster-name", s.scope.InfraClusterName())
+
+	data, ok := configSecret.Data[secret.KubeconfigDataName]
+	if !ok {
+		return errors.Errorf("missing key %q in secret data", secret.KubeconfigDataName)
+	}
+
+	config, err := clientcmd.Load(data)
+	if err != nil {
+		return errors.Wrap(err, "failed to convert kubeconfig Secret into a clientcmdapi.Config")
+	}
+
+	clientCertificateData, clientKeyData, err := s.generateClientData()
+	if err != nil {
+		return err
+	}
+
+	userName := s.getKubeConfigUserName(s.scope.InfraClusterName(), false)
+	config.AuthInfos[userName].ClientCertificateData = clientCertificateData
+	config.AuthInfos[userName].ClientKeyData = clientKeyData
+
+	out, err := clientcmd.Write(*config)
+	if err != nil {
+		return errors.Wrap(err, "failed to serialize config to yaml")
+	}
+
+	configSecret.Data[secret.KubeconfigDataName] = out
+
+	err = s.scope.Client.Update(ctx, configSecret)
+	if err != nil {
+		return fmt.Errorf("updating kubeconfig secret: %w", err)
+	}
+
+	return nil
+}
+
 func waitUntil(condition func() (bool, error), interval time.Duration, maxRetries int) error {
 	for i := 0; i < maxRetries; i++ {
 		ok, err := condition()
@@ -357,4 +531,16 @@ func waitUntil(condition func() (bool, error), interval time.Duration, maxRetrie
 	}
 
 	return fmt.Errorf("failed to wait")
+}
+
+func parseURL(address string) (string, int, error) {
+	u, err := url.Parse(address)
+	if err != nil {
+		return "", 0, errors.Wrap(err, "failed to pase url")
+	}
+	port, err := strconv.Atoi(u.Port())
+	if err != nil {
+		return "", 0, errors.Wrap(err, "String to int conversion error")
+	}
+	return u.Hostname(), port, nil
 }

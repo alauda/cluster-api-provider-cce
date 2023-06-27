@@ -1,6 +1,9 @@
 # Adds namespace to all resources.
 namespace: cluster-api-provider-cce-system
 
+commonLabels:
+  cluster.x-k8s.io/provider: "infrastructure-cce"
+
 # Value of this field is prepended to the
 # names of all resources, e.g. a deployment named
 # "wordpress" becomes "alices-wordpress".

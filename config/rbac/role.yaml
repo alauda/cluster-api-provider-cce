@@ -63,8 +63,8 @@ rules:
 - apiGroups:
   - infrastructure.cluster.x-k8s.io
   resources:
-  - awsmachinepools/status
   - ccemachinepools
+  - ccemachinepools/status
   verbs:
   - get
   - list

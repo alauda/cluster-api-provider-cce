@@ -3,13 +3,14 @@ package scope
 import (
 	"context"
 
-	infrastructurev1beta1 "github.com/alauda/cluster-api-provider-cce/api/v1beta1"
-	"github.com/alauda/cluster-api-provider-cce/pkg/logger"
 	"github.com/pkg/errors"
 	"k8s.io/klog/v2"
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 	"sigs.k8s.io/cluster-api/util/patch"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	infrastructurev1beta1 "github.com/alauda/cluster-api-provider-cce/api/v1beta1"
+	"github.com/alauda/cluster-api-provider-cce/pkg/logger"
 )
 
 // ManagedControlPlaneScopeParams defines the input parameters used to create a new Scope.

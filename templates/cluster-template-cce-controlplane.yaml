@@ -1,0 +1,63 @@
+
+apiVersion: v1
+kind: Secret
+metadata:
+  annotations:
+    cpaas.io/creator: admin@cpaas.io
+    cpaas.io/display-name: aws-test
+    cpaas.io/api-key: xxxx
+  labels:
+    capi.cpaas.io/provider: capi-provider-cce
+  name: abctest
+  namespace: cpaas-system
+type: CloudCredential
+data:
+  accessKey: Cg==
+  secretKey: Cg==
+---
+apiVersion: cluster.x-k8s.io/v1beta1
+kind: Cluster
+metadata:
+  name: abctest
+  namespace: cpaas-system
+spec:
+  clusterNetwork:
+    pods:
+      cidrBlocks:
+        - 10.247.0.0/16
+  infrastructureRef:
+    kind: CCEManagedCluster
+    apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
+    name: abctest
+  controlPlaneRef:
+    kind: CCEManagedControlPlane
+    apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
+    name: abctest
+---
+kind: CCEManagedControlPlane
+apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
+metadata:
+  name: abctest
+  namespace: cpaas-system
+spec:
+  identityRef:
+    kind: Secret
+    name: abctest
+    namespace: cpaas-system
+  project: "0"
+  region: ap-southeast-3
+  clusterName: abctest
+  flavor: cce.s2.small
+  bindPublicNetwork: true
+  hostNetwork:
+    vpc: 0f902bd6-393a-4113-85d7-dc0e21ec3873
+    subnet: 888fb6ce-02ee-4f3f-885b-94cedf540f0a
+  serviceNetwork:
+    IPv4CIDR: 10.247.0.0/16
+---
+kind: CCEManagedCluster
+apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
+metadata:
+  name: abctest
+  namespace: cpaas-system
+spec: {}

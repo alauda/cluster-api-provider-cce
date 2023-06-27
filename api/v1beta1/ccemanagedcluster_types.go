@@ -43,7 +43,7 @@ type CCEManagedClusterStatus struct {
 }
 
 //+kubebuilder:object:root=true
-//+kubebuilder:resource:path=ccemanagedclusters,scope=Namespaced,categories=cluster-api,shortName=ccec
+//+kubebuilder:resource:path=ccemanagedclusters,scope=Namespaced,categories=cluster-api,shortName=ccemc
 //+kubebuilder:storageversion
 //+kubebuilder:subresource:status
 

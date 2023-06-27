@@ -27,6 +27,8 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 	"sigs.k8s.io/cluster-api/util"
+	capiannotations "sigs.k8s.io/cluster-api/util/annotations"
+	"sigs.k8s.io/cluster-api/util/predicates"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
@@ -39,8 +41,6 @@ import (
 	"github.com/alauda/cluster-api-provider-cce/pkg/cloud/scope"
 	"github.com/alauda/cluster-api-provider-cce/pkg/cloud/services/cce"
 	"github.com/alauda/cluster-api-provider-cce/pkg/logger"
-	capiannotations "sigs.k8s.io/cluster-api/util/annotations"
-	"sigs.k8s.io/cluster-api/util/predicates"
 )
 
 const (

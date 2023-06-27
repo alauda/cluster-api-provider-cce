@@ -192,6 +192,11 @@ func (in *CCEManagedControlPlaneSpec) DeepCopyInto(out *CCEManagedControlPlaneSp
 		*out = new(v1.ObjectReference)
 		**out = **in
 	}
+	if in.ClusterName != nil {
+		in, out := &in.ClusterName, &out.ClusterName
+		*out = new(string)
+		**out = **in
+	}
 	if in.Flavor != nil {
 		in, out := &in.Flavor, &out.Flavor
 		*out = new(string)
