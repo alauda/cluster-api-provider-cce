@@ -1,0 +1,245 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.11.3
+  creationTimestamp: null
+  name: ccemanagedmachinepools.infrastructure.cluster.x-k8s.io
+spec:
+  group: infrastructure.cluster.x-k8s.io
+  names:
+    categories:
+    - cluster-api
+    kind: CCEManagedMachinePool
+    listKind: CCEManagedMachinePoolList
+    plural: ccemanagedmachinepools
+    shortNames:
+    - ccemmp
+    singular: ccemanagedmachinepool
+  scope: Namespaced
+  versions:
+  - name: v1beta1
+    schema:
+      openAPIV3Schema:
+        description: CCEManagedMachinePool is the Schema for the ccemanagedmachinepools
+          API
+        properties:
+          apiVersion:
+            description: 'APIVersion defines the versioned schema of this representation
+              of an object. Servers should convert recognized schemas to the latest
+              internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+            type: string
+          kind:
+            description: 'Kind is a string value representing the REST resource this
+              object represents. Servers may infer this from the endpoint the client
+              submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: CCEManagedMachinePoolSpec defines the desired state of CCEManagedMachinePool
+            properties:
+              clusterName:
+                description: 集群名称
+                type: string
+              nodeCount:
+                description: 节点池节点个数
+                format: int32
+                type: integer
+              nodeTemplate:
+                description: 节点配置模板
+                properties:
+                  dataVolumes:
+                    description: 数据盘
+                    items:
+                      properties:
+                        size:
+                          description: 磁盘大小，单位为GB  - 系统盘取值范围：40~1024 - 数据盘取值范围：100~32768
+                          format: int32
+                          type: integer
+                        volumetype:
+                          description: 磁盘类型，取值请参见创建云服务器 中“root_volume字段数据结构说明”。  -
+                            SAS：高IO，是指由SAS存储提供资源的磁盘类型。 - SSD：超高IO，是指由SSD存储提供资源的磁盘类型。
+                            - SATA：普通IO，是指由SATA存储提供资源的磁盘类型。EVS已下线SATA磁盘，仅存量节点有此类型的磁盘。
+                          type: string
+                      required:
+                      - size
+                      - volumetype
+                      type: object
+                    type: array
+                  flavor:
+                    description: 节点的规格
+                    type: string
+                  labels:
+                    additionalProperties:
+                      type: string
+                    description: Labels specifies labels for the Kubernetes node objects
+                    type: object
+                  login:
+                    description: 登录密钥
+                    properties:
+                      sshKey:
+                        description: 选择密钥对方式登录时的密钥对名称。
+                        type: string
+                    type: object
+                  rootVolume:
+                    description: 系统盘
+                    properties:
+                      size:
+                        description: 磁盘大小，单位为GB  - 系统盘取值范围：40~1024 - 数据盘取值范围：100~32768
+                        format: int32
+                        type: integer
+                      volumetype:
+                        description: 磁盘类型，取值请参见创建云服务器 中“root_volume字段数据结构说明”。  - SAS：高IO，是指由SAS存储提供资源的磁盘类型。
+                          - SSD：超高IO，是指由SSD存储提供资源的磁盘类型。 - SATA：普通IO，是指由SATA存储提供资源的磁盘类型。EVS已下线SATA磁盘，仅存量节点有此类型的磁盘。
+                        type: string
+                    required:
+                    - size
+                    - volumetype
+                    type: object
+                  runtime:
+                    description: 容器运行时
+                    type: string
+                  subnet:
+                    description: 节点子网 ID
+                    type: string
+                  taints:
+                    description: 污点
+                    items:
+                      description: 如下字段不可使用：  - node.kubernetes.io/memory-pressure
+                        - node.kubernetes.io/disk-pressure - node.kubernetes.io/out-of-disk
+                        - node.kubernetes.io/unschedulable - node.kubernetes.io/network-unavailable
+                      properties:
+                        effect:
+                          description: 作用效果 NoSchedule,PreferNoSchedule,NoExecute
+                          type: string
+                        key:
+                          description: 键
+                          type: string
+                        value:
+                          description: 值
+                          type: string
+                      required:
+                      - effect
+                      - key
+                      type: object
+                    type: array
+                required:
+                - dataVolumes
+                - flavor
+                - login
+                - rootVolume
+                type: object
+              nodepoolName:
+                description: 节点池名称
+                type: string
+              providerIDList:
+                description: ProviderIDList are the provider IDs of instances in the
+                  autoscaling group corresponding to the nodegroup represented by
+                  this machine pool
+                items:
+                  type: string
+                type: array
+            required:
+            - nodeTemplate
+            type: object
+          status:
+            description: CCEManagedMachinePoolStatus defines the observed state of
+              CCEManagedMachinePool
+            properties:
+              conditions:
+                description: Conditions defines current service state of the managed
+                  machine pool
+                items:
+                  description: Condition defines an observation of a Cluster API resource
+                    operational state.
+                  properties:
+                    lastTransitionTime:
+                      description: Last time the condition transitioned from one status
+                        to another. This should be when the underlying condition changed.
+                        If that is not known, then using the time when the API field
+                        changed is acceptable.
+                      format: date-time
+                      type: string
+                    message:
+                      description: A human readable message indicating details about
+                        the transition. This field may be empty.
+                      type: string
+                    reason:
+                      description: The reason for the condition's last transition
+                        in CamelCase. The specific API may choose whether or not this
+                        field is considered a guaranteed API. This field may not be
+                        empty.
+                      type: string
+                    severity:
+                      description: Severity provides an explicit classification of
+                        Reason code, so the users or machines can immediately understand
+                        the current situation and act accordingly. The Severity field
+                        MUST be set only when Status=False.
+                      type: string
+                    status:
+                      description: Status of the condition, one of True, False, Unknown.
+                      type: string
+                    type:
+                      description: Type of condition in CamelCase or in foo.example.com/CamelCase.
+                        Many .condition.type values are consistent across resources
+                        like Available, but because arbitrary conditions can be useful
+                        (see .node.status.conditions), the ability to deconflict is
+                        important.
+                      type: string
+                  required:
+                  - lastTransitionTime
+                  - status
+                  - type
+                  type: object
+                type: array
+              failureMessage:
+                description: "FailureMessage will be set in the event that there is
+                  a terminal problem reconciling the MachinePool and will contain
+                  a more verbose string suitable for logging and human consumption.
+                  \n This field should not be set for transitive errors that a controller
+                  faces that are expected to be fixed automatically over time (like
+                  service outages), but instead indicate that something is fundamentally
+                  wrong with the MachinePool's spec or the configuration of the controller,
+                  and that manual intervention is required. Examples of terminal errors
+                  would be invalid combinations of settings in the spec, values that
+                  are unsupported by the controller, or the responsible controller
+                  itself being critically misconfigured. \n Any transient errors that
+                  occur during the reconciliation of MachinePools can be added as
+                  events to the MachinePool object and/or logged in the controller's
+                  output."
+                type: string
+              failureReason:
+                description: "FailureReason will be set in the event that there is
+                  a terminal problem reconciling the MachinePool and will contain
+                  a succinct value suitable for machine interpretation. \n This field
+                  should not be set for transitive errors that a controller faces
+                  that are expected to be fixed automatically over time (like service
+                  outages), but instead indicate that something is fundamentally wrong
+                  with the Machine's spec or the configuration of the controller,
+                  and that manual intervention is required. Examples of terminal errors
+                  would be invalid combinations of settings in the spec, values that
+                  are unsupported by the controller, or the responsible controller
+                  itself being critically misconfigured. \n Any transient errors that
+                  occur during the reconciliation of MachinePools can be added as
+                  events to the MachinePool object and/or logged in the controller's
+                  output."
+                type: string
+              ready:
+                default: false
+                description: Ready denotes that the CCEManagedMachinePool nodegroup
+                  has joined the cluster
+                type: boolean
+              replicas:
+                description: Replicas is the most recently observed number of replicas.
+                format: int32
+                type: integer
+            required:
+            - ready
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}

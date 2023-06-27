@@ -1,0 +1,12 @@
+apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
+kind: CCEManagedMachinePool
+metadata:
+  labels:
+    app.kubernetes.io/name: ccemanagedmachinepool
+    app.kubernetes.io/instance: ccemanagedmachinepool-sample
+    app.kubernetes.io/part-of: cluster-api-provider-cce
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/created-by: cluster-api-provider-cce
+  name: ccemanagedmachinepool-sample
+spec:
+  # TODO(user): Add fields here
