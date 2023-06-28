@@ -29,7 +29,7 @@ func NewManagedControlPlaneScope(params ManagedControlPlaneScopeParams) (*Manage
 		return nil, errors.New("failed to generate new scope from nil Cluster")
 	}
 	if params.ControlPlane == nil {
-		return nil, errors.New("failed to generate new scope from nil AWSManagedControlPlane")
+		return nil, errors.New("failed to generate new scope from nil CCEManagedControlPlane")
 	}
 	if params.Logger == nil {
 		log := klog.Background()

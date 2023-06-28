@@ -153,7 +153,7 @@ func (r *CCEManagedControlPlaneReconciler) SetupWithManager(ctx context.Context,
 		&source.Kind{Type: &infrastructurev1beta1.CCEManagedCluster{}},
 		handler.EnqueueRequestsFromMapFunc(r.managedClusterToManagedControlPlane(ctx, log)),
 	); err != nil {
-		return fmt.Errorf("failed adding a watch for AWSManagedCluster")
+		return fmt.Errorf("failed adding a watch for CCEManagedCluster")
 	}
 
 	return nil
@@ -163,7 +163,7 @@ func (r *CCEManagedControlPlaneReconciler) managedClusterToManagedControlPlane(c
 	return func(o client.Object) []ctrl.Request {
 		cceManagedCluster, ok := o.(*infrastructurev1beta1.CCEManagedCluster)
 		if !ok {
-			log.Error(fmt.Errorf("expected a CCEManagedCluster but got a %T", o), "Expected AWSManagedCluster")
+			log.Error(fmt.Errorf("expected a CCEManagedCluster but got a %T", o), "Expected CCEManagedCluster")
 			return nil
 		}
 

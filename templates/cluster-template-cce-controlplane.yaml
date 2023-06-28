@@ -4,7 +4,7 @@ kind: Secret
 metadata:
   annotations:
     cpaas.io/creator: admin@cpaas.io
-    cpaas.io/display-name: aws-test
+    cpaas.io/display-name: cce-test
     cpaas.io/api-key: xxxx
   labels:
     capi.cpaas.io/provider: capi-provider-cce

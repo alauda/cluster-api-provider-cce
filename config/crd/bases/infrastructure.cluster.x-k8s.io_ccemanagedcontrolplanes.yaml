@@ -231,7 +231,7 @@ spec:
                 type: boolean
               ready:
                 default: false
-                description: Ready denotes that the AWSManagedControlPlane API Server
+                description: Ready denotes that the CCEManagedControlPlane API Server
                   is ready to receive requests and that the VPC infra is ready.
                 type: boolean
             required:

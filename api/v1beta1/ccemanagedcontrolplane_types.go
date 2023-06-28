@@ -139,7 +139,7 @@ type CCEManagedControlPlaneStatus struct {
 	// uploaded kubernetes config-map.
 	// +optional
 	Initialized bool `json:"initialized"`
-	// Ready denotes that the AWSManagedControlPlane API Server is ready to
+	// Ready denotes that the CCEManagedControlPlane API Server is ready to
 	// receive requests and that the VPC infra is ready.
 	// +kubebuilder:default=false
 	Ready bool `json:"ready"`
@@ -182,7 +182,7 @@ func (r *CCEManagedControlPlane) GetConditions() clusterv1.Conditions {
 	return r.Status.Conditions
 }
 
-// SetConditions sets the status conditions for the AWSManagedControlPlane.
+// SetConditions sets the status conditions for the CCEManagedControlPlane.
 func (r *CCEManagedControlPlane) SetConditions(conditions clusterv1.Conditions) {
 	r.Status.Conditions = conditions
 }
