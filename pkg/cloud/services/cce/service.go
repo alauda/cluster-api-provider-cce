@@ -46,7 +46,7 @@ func NewService(controlPlaneScope *scope.ManagedControlPlaneScope, opts ...Servi
 	sec := &corev1.Secret{}
 	err := controlPlaneScope.Client.Get(context.TODO(), types.NamespacedName{
 		Name:      controlPlaneScope.ControlPlane.Spec.IdentityRef.Name,
-		Namespace: controlPlaneScope.ControlPlane.Spec.IdentityRef.Namespace,
+		Namespace: controlPlaneScope.ControlPlane.Namespace,
 	}, sec)
 	if err != nil {
 		return nil, err
@@ -233,7 +233,7 @@ func (s *Service) reconcileEIP(ctx context.Context) error {
 		ChargeMode: &chargeMode,
 		Name:       pointer.String(s.scope.InfraClusterName()),
 		ShareType:  eipmodel.GetCreatePublicipBandwidthOptionShareTypeEnum().PER,
-		Size:       pointer.Int32(1),
+		Size:       pointer.Int32(100),
 	}
 	eipReq.Body = &eipmodel.CreatePublicipRequestBody{
 		Publicip:  publicipbody,
@@ -319,9 +319,10 @@ func (s *Service) createCluster() (*ccemodel.CreateClusterResponse, error) {
 	containerNetworkSpec := &ccemodel.ContainerNetwork{
 		Mode: ccemodel.GetContainerNetworkModeEnum().VPC_ROUTER,
 	}
+
 	hostNetworkSpec := &ccemodel.HostNetwork{
-		Vpc:    s.scope.ControlPlane.Spec.HostNetwork.Vpc,
-		Subnet: s.scope.ControlPlane.Spec.HostNetwork.Subnet,
+		Vpc:    s.scope.ControlPlane.Spec.NetworkSpec.VPC.ID,
+		Subnet: s.scope.ControlPlane.Spec.NetworkSpec.Subnet.ID,
 	}
 	specbody := &ccemodel.ClusterSpec{
 		Flavor:           *s.scope.ControlPlane.Spec.Flavor,
@@ -329,7 +330,7 @@ func (s *Service) createCluster() (*ccemodel.CreateClusterResponse, error) {
 		ContainerNetwork: containerNetworkSpec,
 	}
 	metadatabody := &ccemodel.ClusterMetadata{
-		Name: *s.scope.ControlPlane.Spec.ClusterName,
+		Name: s.scope.ControlPlane.Name,
 	}
 	request.Body = &ccemodel.Cluster{
 		Spec:       specbody,
@@ -345,7 +346,7 @@ func (s *Service) createCluster() (*ccemodel.CreateClusterResponse, error) {
 
 	conditions.MarkTrue(s.scope.ControlPlane, infrastructurev1beta1.CCEControlPlaneCreatingCondition)
 
-	s.scope.Info("Created CCE cluster in Huaweicloud", "cluster", klog.KRef("", *s.scope.ControlPlane.Spec.ClusterName))
+	s.scope.Info("Created CCE cluster in Huaweicloud", "cluster", klog.KRef("", *&s.scope.ControlPlane.Name))
 	return response, nil
 }
 

@@ -24,6 +24,9 @@ spec:
   clusterNetwork:
     pods:
       cidrBlocks:
+        - 10.0.0.0/16
+    services:
+      cidrBlocks:
         - 10.247.0.0/16
   infrastructureRef:
     kind: CCEManagedCluster
@@ -42,18 +45,21 @@ metadata:
 spec:
   identityRef:
     kind: Secret
-    name: abctest
+    name: cc
     namespace: cpaas-system
   project: "0"
-  region: ap-southeast-3
-  clusterName: abctest
+  region: cn-east-3
+  version: v1.25
   flavor: cce.s2.small
-  bindPublicNetwork: true
-  hostNetwork:
-    vpc: 0f902bd6-393a-4113-85d7-dc0e21ec3873
-    subnet: 888fb6ce-02ee-4f3f-885b-94cedf540f0a
-  serviceNetwork:
-    IPv4CIDR: 10.247.0.0/16
+  network:
+    mode: vpc-router
+    vpc:
+      id: c4742ae2-4dd1-490d-a478-7188bf7982c7
+    subnet:
+      id: b93df9d5-8b45-4a92-a44e-6a6840118640
+  endpointAccess:
+    public: true
+
 ---
 kind: CCEManagedCluster
 apiVersion: infrastructure.cluster.x-k8s.io/v1beta1

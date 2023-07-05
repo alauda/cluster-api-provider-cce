@@ -49,28 +49,27 @@ const (
 // EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
 // NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
 
-// 节点网络参数, 包含了虚拟私有云VPC和子网的ID信息。
-type HostNetwork struct {
-
-	// 用于创建控制节点的VPC的ID
-	Vpc string `json:"vpc"`
-
-	// 用于创建控制节点的subnet的网络ID
-	Subnet string `json:"subnet"`
+type VPCSpec struct {
+	ID string `json:"id,omitempty"`
 }
 
-// 容器网络参数，包含了容器网络类型和容器网段的信息。
-type ContainerNetwork struct {
+type SubnetSpec struct {
+	ID string `json:"id,omitempty"`
+}
 
-	// 容器网络类型，overlay_l2 - 容器隧道网络，vpc-router - VPC网络，eni - 云原生网络2.0
-	Mode string `json:"mode"`
+// NetworkSpec encapsulates all things related to CCE network.
+type NetworkSpec struct {
+	// 网络模型，overlay_l2 - 容器隧道网络，vpc-router - VPC网络，eni - 云原生网络2.0
+	Mode *string `json:"mode"`
 
-	// 容器网络网段列表
-	Cidrs *[]string `json:"cidrs,omitempty"`
+	// VPC configuration.
+	VPC VPCSpec `json:"vpc,omitempty"`
+
+	// Subnet configuration.
+	Subnet SubnetSpec `json:"subnet,omitempty"`
 }
 
 type ClusterEndpoints struct {
-
 	// 集群中 kube-apiserver 的访问地址
 	Url *string `json:"url,omitempty"`
 
@@ -78,27 +77,26 @@ type ClusterEndpoints struct {
 	Type *string `json:"type,omitempty"`
 }
 
-// 服务网段
-type ServiceNetwork struct {
-	IPv4CIDR string `json:"IPv4CIDR"`
+// EndpointAccess specifies how control plane endpoints are accessible.
+type EndpointAccess struct {
+	// Public controls whether control plane endpoints are publicly accessible
+	// +optional
+	Public *bool `json:"public,omitempty"`
 }
 
 // CCEManagedControlPlaneSpec defines the desired state of CCEManagedControlPlane
 type CCEManagedControlPlaneSpec struct {
-	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
-
 	// 身份引用
 	IdentityRef *corev1.ObjectReference `json:"identityRef,omitempty"`
 
 	// 项目ID
-	Project string `json:"project,omitempty"`
+	Project *string `json:"project,omitempty"`
 
 	// 地域
 	Region string `json:"region,omitempty"`
 
-	// 集群名称
-	ClusterName *string `json:"clusterName,omitempty"`
+	// Kubernetes版本
+	Version *string `json:"version,omitempty"`
 
 	// 集群规格
 	// cce.s1.small: 小规模单控制节点CCE集群（最大50节点）
@@ -110,19 +108,11 @@ type CCEManagedControlPlaneSpec struct {
 	Flavor *string `json:"flavor,omitempty"`
 
 	// 节点网络参数
-	HostNetwork *HostNetwork `json:"hostNetwork,omitempty"`
+	NetworkSpec NetworkSpec `json:"network,omitempty"`
 
-	// 容器网络参数
-	ContainerNetwork *ContainerNetwork `json:"containerNetwork,omitempty"`
-
-	// Kubernetes版本
-	Version *string `json:"version,omitempty"`
-
-	// 绑定公网
-	BindPublicNetwork *bool `json:"bindPublicNetwork,omitempty"`
-
-	// Service 网段
-	ServiceNetwork *ServiceNetwork `json:"serviceNetwork,omitempty"`
+	// Endpoints specifies access to this cluster's control plane endpoints
+	// +optional
+	EndpointAccess *EndpointAccess `json:"endpointAccess,omitempty"`
 
 	// ControlPlaneEndpoint represents the endpoint used to communicate with the control plane.
 	// +optional

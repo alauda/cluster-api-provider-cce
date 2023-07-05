@@ -37,12 +37,6 @@ type Taint struct {
 	Effect string `json:"effect"`
 }
 
-type Login struct {
-
-	// 选择密钥对方式登录时的密钥对名称。
-	SshKey *string `json:"sshKey,omitempty"`
-}
-
 type Volume struct {
 
 	// 磁盘大小，单位为GB  - 系统盘取值范围：40~1024 - 数据盘取值范围：100~32768
@@ -52,15 +46,22 @@ type Volume struct {
 	Volumetype string `json:"volumetype"`
 }
 
-type NodeTemplateSpec struct {
+// CCEManagedMachinePoolSpec defines the desired state of CCEManagedMachinePool
+type CCEManagedMachinePoolSpec struct {
+	// 节点池名称
+	Name *string `json:"name,omitempty"`
+
+	// 节点池节点个数
+	Replicas *int32 `json:"replicas,omitempty"`
+
 	// 节点的规格
-	Flavor string `json:"flavor"`
+	Flavor *string `json:"flavor"`
 
 	// 容器运行时
 	Runtime *string `json:"runtime,omitempty"`
 
 	// 登录密钥
-	Login *Login `json:"login"`
+	SSHKeyName *string `json:"sshKeyName,omitempty"`
 
 	// 系统盘
 	RootVolume *Volume `json:"rootVolume"`
@@ -76,25 +77,7 @@ type NodeTemplateSpec struct {
 	Taints *[]Taint `json:"taints,omitempty"`
 
 	// 节点子网 ID
-	Subnet *string `json:"subnet,omitempty"`
-}
-
-// CCEManagedMachinePoolSpec defines the desired state of CCEManagedMachinePool
-type CCEManagedMachinePoolSpec struct {
-	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
-
-	// 集群名称
-	ClusterName *string `json:"clusterName,omitempty"`
-
-	// 节点池名称
-	NodepoolName *string `json:"nodepoolName,omitempty"`
-
-	// 节点池节点个数
-	NodeCount *int32 `json:"nodeCount,omitempty"`
-
-	// 节点配置模板
-	NodeTemplate *NodeTemplateSpec `json:"nodeTemplate"`
+	Subnet *SubnetSpec `json:"subnet,omitempty"`
 
 	// ProviderIDList are the provider IDs of instances in the
 	// autoscaling group corresponding to the nodegroup represented by this
