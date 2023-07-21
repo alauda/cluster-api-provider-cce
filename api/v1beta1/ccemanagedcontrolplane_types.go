@@ -46,14 +46,41 @@ const (
 	CCEControlPlaneReconciliationFailedReason = "CCEControlPlaneReconciliationFailed"
 )
 
+const (
+	// VpcReadyCondition reports on the successful reconciliation of a VPC.
+	VpcReadyCondition clusterv1.ConditionType = "VpcReady"
+	// VpcCreationStartedReason used when attempting to create a VPC for a managed cluster.
+	// Will not be applied to unmanaged clusters.
+	VpcCreationStartedReason = "VpcCreationStarted"
+	// VpcReconciliationFailedReason used when errors occur during VPC reconciliation.
+	VpcReconciliationFailedReason = "VpcReconciliationFailed"
+)
+
+const (
+	// SubnetsReadyCondition reports on the successful reconciliation of subnets.
+	SubnetsReadyCondition clusterv1.ConditionType = "SubnetsReady"
+	// SubnetsReconciliationFailedReason used to report failures while reconciling subnets.
+	SubnetsReconciliationFailedReason = "SubnetsReconciliationFailed"
+)
+
+const (
+	// Only applicable to managed clusters.
+	EIPReadyCondition clusterv1.ConditionType = "EIPReady"
+	EIPFailedReason                           = "EIPFailed"
+)
+
 // EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
 // NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
 
-type VPCSpec struct {
+type VPC struct {
 	ID string `json:"id,omitempty"`
 }
 
-type SubnetSpec struct {
+type Subnet struct {
+	ID string `json:"id,omitempty"`
+}
+
+type EIP struct {
 	ID string `json:"id,omitempty"`
 }
 
@@ -63,18 +90,16 @@ type NetworkSpec struct {
 	Mode *string `json:"mode"`
 
 	// VPC configuration.
-	VPC VPCSpec `json:"vpc,omitempty"`
+	VPC VPC `json:"vpc,omitempty"`
 
 	// Subnet configuration.
-	Subnet SubnetSpec `json:"subnet,omitempty"`
+	Subnet Subnet `json:"subnet,omitempty"`
 }
 
-type ClusterEndpoints struct {
-	// 集群中 kube-apiserver 的访问地址
-	Url *string `json:"url,omitempty"`
-
-	// 集群访问地址的类型 - Internal：用户子网内访问的地址 - External：公网访问的地址
-	Type *string `json:"type,omitempty"`
+// NetworkStatus encapsulates CCE networking resources.
+type NetworkStatus struct {
+	// EIP configuration
+	EIP EIP `json:"eip,omitempty"`
 }
 
 // EndpointAccess specifies how control plane endpoints are accessible.
@@ -121,6 +146,9 @@ type CCEManagedControlPlaneSpec struct {
 
 // CCEManagedControlPlaneStatus defines the observed state of CCEManagedControlPlane
 type CCEManagedControlPlaneStatus struct {
+	// Networks holds details about the CCE networking resources used by the control plane
+	// +optional
+	Network NetworkStatus `json:"networkStatus,omitempty"`
 	// ExternalManagedControlPlane indicates to cluster-api that the control plane
 	// is managed by an external service such as AKS, EKS, GKE, etc.
 	// +kubebuilder:default=true
@@ -139,9 +167,6 @@ type CCEManagedControlPlaneStatus struct {
 	FailureMessage *string `json:"failureMessage,omitempty"`
 	// Conditions specifies the cpnditions for the managed control plane
 	Conditions clusterv1.Conditions `json:"conditions,omitempty"`
-
-	// 集群中 kube-apiserver 的访问地址。
-	Endpoints *[]ClusterEndpoints `json:"endpoints,omitempty"`
 }
 
 //+kubebuilder:object:root=true
@@ -175,6 +200,13 @@ func (r *CCEManagedControlPlane) GetConditions() clusterv1.Conditions {
 // SetConditions sets the status conditions for the CCEManagedControlPlane.
 func (r *CCEManagedControlPlane) SetConditions(conditions clusterv1.Conditions) {
 	r.Status.Conditions = conditions
+}
+
+func (r *CCEManagedControlPlane) InfraClusterID() string {
+	if id, ok := r.GetLabels()[InfraClusterIDLabel]; ok {
+		return id
+	}
+	return ""
 }
 
 func init() {

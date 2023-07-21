@@ -58,7 +58,7 @@ spec:
     subnet:
       id: 47178c1f-2fae-4f9d-b69c-8659bab27ed3
   endpointAccess:
-    public: false
+    public: true
 
 ---
 kind: CCEManagedCluster
@@ -67,3 +67,48 @@ metadata:
   name: abctest
   namespace: cpaas-system
 spec: {}
+---
+apiVersion: cluster.x-k8s.io/v1beta1
+kind: MachinePool
+metadata:
+  name: abctest-pool-0
+  namespace: cpaas-system
+spec:
+  clusterName: "abctest"
+  replicas: 2
+  template:
+    spec:
+      clusterName: "abctest"
+      bootstrap:
+        dataSecretName: ""
+      infrastructureRef:
+        name: "abctest-pool-0"
+        apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
+        kind: CCEManagedMachinePool
+---
+apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
+kind: CCEManagedMachinePool
+metadata:
+  name: "abctest-pool-0"
+  namespace: cpaas-system
+  labels:
+    cluster.x-k8s.io/cluster-name: abctest
+spec:
+  replicas: 2
+  flavor: c7n.large.2
+  runtime: containerd
+  sshKeyName: KeyPair-e905
+  rootVolume:
+    size: 50
+    volumetype: GPSSD
+  dataVolumes:
+  - size: 100
+    volumetype: GPSSD
+  labels:
+    test-k: test-v
+  taints:
+  - key: test-k1
+    value: test-v1
+    effect: NoSchedule
+  subnet:
+    id: 47178c1f-2fae-4f9d-b69c-8659bab27ed3

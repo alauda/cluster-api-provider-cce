@@ -25,6 +25,7 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/klog/v2"
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 	"sigs.k8s.io/cluster-api/util"
 	capiannotations "sigs.k8s.io/cluster-api/util/annotations"
@@ -200,7 +201,34 @@ func (r *CCEManagedControlPlaneReconciler) managedClusterToManagedControlPlane(c
 }
 
 func (r *CCEManagedControlPlaneReconciler) reconcileDelete(ctx context.Context, managedScope *scope.ManagedControlPlaneScope) (_ ctrl.Result, reterr error) {
+	log := logger.FromContext(ctx)
+
 	managedScope.Info("Reconciling CCEManagedControlPlane delete")
+
+	controlPlane := managedScope.ControlPlane
+
+	numDependencies, err := r.dependencyCount(ctx, managedScope)
+	if err != nil {
+		log.Error(err, "error getting controlplane dependencies", "namespace", controlPlane.Namespace, "name", controlPlane.Name)
+		return reconcile.Result{}, err
+	}
+	if numDependencies > 0 {
+		log.Info("CCE cluster still has dependencies - requeue needed", "dependencyCount", numDependencies)
+		return reconcile.Result{RequeueAfter: deleteRequeueAfter}, nil
+	}
+	log.Info("CCE cluster has no dependencies")
+
+	// service init
+	ccesvc, err := cce.NewService(managedScope)
+	if err != nil {
+		return reconcile.Result{}, fmt.Errorf("error deleting CCE cluster for CCE control plane %s/%s: %w", controlPlane.Namespace, controlPlane.Name, err)
+	}
+	if err := ccesvc.DeleteControlPlane(); err != nil {
+		log.Error(err, "error deleting CCE cluster for CCE control plane", "namespace", controlPlane.Namespace, "name", controlPlane.Name)
+		return reconcile.Result{}, err
+	}
+
+	controllerutil.RemoveFinalizer(controlPlane, infrastructurev1beta1.ManagedControlPlaneFinalizer)
 
 	return reconcile.Result{}, nil
 }
@@ -227,11 +255,28 @@ func (r *CCEManagedControlPlaneReconciler) reconcileNormal(ctx context.Context, 
 	// service init
 	ccesvc, err := cce.NewService(managedScope)
 	if err != nil {
-		return reconcile.Result{}, fmt.Errorf("failed to reconcile control plane for CCEManagedControlPlane %s/%s: %w", cceManagedControlPlane.Namespace, cceManagedControlPlane.Name, err)
+		return reconcile.Result{}, fmt.Errorf("failed to init cce service for CCEManagedControlPlane %s/%s: %w", cceManagedControlPlane.Namespace, cceManagedControlPlane.Name, err)
 	}
+
+	if err := ccesvc.ReconcileNetwork(); err != nil {
+		return reconcile.Result{}, fmt.Errorf("failed to reconcile network for CCEManagedControlPlane %s/%s: %w", cceManagedControlPlane.Namespace, cceManagedControlPlane.Name, err)
+	}
+
 	if err := ccesvc.ReconcileControlPlane(ctx); err != nil {
 		return reconcile.Result{}, fmt.Errorf("failed to reconcile control plane for CCEManagedControlPlane %s/%s: %w", cceManagedControlPlane.Namespace, cceManagedControlPlane.Name, err)
 	}
 
 	return reconcile.Result{}, nil
+}
+
+func (r *CCEManagedControlPlaneReconciler) dependencyCount(ctx context.Context, managedScope *scope.ManagedControlPlaneScope) (int, error) {
+	log := logger.FromContext(ctx)
+
+	clusterName := managedScope.Cluster.Name
+	namespace := managedScope.Cluster.Namespace
+	log.Info("looking for CCE cluster dependencies", "cluster", klog.KRef(namespace, clusterName))
+
+	dependencies := 0
+
+	return dependencies, nil
 }

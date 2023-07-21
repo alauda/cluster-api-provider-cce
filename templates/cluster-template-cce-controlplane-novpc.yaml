@@ -50,13 +50,9 @@ spec:
   project: "0"
   region: ap-southeast-1
   version: v1.25
-  flavor: cce.s2.small
+  flavor: cce.s1.small
   network:
     mode: vpc-router
-    vpc:
-      id: 23a9d5e1-4ca0-4605-825a-ebe2527d999b
-    subnet:
-      id: 47178c1f-2fae-4f9d-b69c-8659bab27ed3
   endpointAccess:
     public: false
 

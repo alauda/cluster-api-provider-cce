@@ -70,7 +70,15 @@ type ManagedControlPlaneScope struct {
 func (s *ManagedControlPlaneScope) PatchObject() error {
 	return s.patchHelper.Patch(
 		context.TODO(),
-		s.ControlPlane)
+		s.ControlPlane,
+		patch.WithOwnedConditions{Conditions: []clusterv1.ConditionType{
+			infrastructurev1beta1.VpcReadyCondition,
+			infrastructurev1beta1.SubnetsReadyCondition,
+			infrastructurev1beta1.EIPReadyCondition,
+			infrastructurev1beta1.CCEControlPlaneCreatingCondition,
+			infrastructurev1beta1.CCEControlPlaneReadyCondition,
+			infrastructurev1beta1.CCEControlPlaneUpdatingCondition,
+		}})
 }
 
 // Close closes the current scope persisting the control plane configuration and status.
@@ -94,7 +102,30 @@ func (s *ManagedControlPlaneScope) SetInfraClusterID(clusterID string) {
 	s.ControlPlane.SetLabels(lbs)
 }
 
+// Name returns the CAPI cluster name.
+func (s *ManagedControlPlaneScope) Name() string {
+	return s.Cluster.Name
+}
+
+// Namespace returns the cluster namespace.
+func (s *ManagedControlPlaneScope) Namespace() string {
+	return s.Cluster.Namespace
+}
+
 // InfraClusterName returns the CCE cluster name.
 func (s *ManagedControlPlaneScope) InfraClusterName() string {
 	return s.ControlPlane.Name
+}
+
+// Region returns the cluster region.
+func (s *ManagedControlPlaneScope) Region() string {
+	return s.ControlPlane.Spec.Region
+}
+
+// Region returns the cluster region.
+func (s *ManagedControlPlaneScope) Project() string {
+	if s.ControlPlane.Spec.Project == nil {
+		return "0"
+	}
+	return *s.ControlPlane.Spec.Project
 }

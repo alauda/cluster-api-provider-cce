@@ -189,18 +189,6 @@ spec:
                   - type
                   type: object
                 type: array
-              endpoints:
-                description: 集群中 kube-apiserver 的访问地址。
-                items:
-                  properties:
-                    type:
-                      description: 集群访问地址的类型 - Internal：用户子网内访问的地址 - External：公网访问的地址
-                      type: string
-                    url:
-                      description: 集群中 kube-apiserver 的访问地址
-                      type: string
-                  type: object
-                type: array
               externalManagedControlPlane:
                 default: true
                 description: ExternalManagedControlPlane indicates to cluster-api
@@ -215,6 +203,17 @@ spec:
                 description: Initialized denotes whether or not the control plane
                   has the uploaded kubernetes config-map.
                 type: boolean
+              networkStatus:
+                description: Networks holds details about the CCE networking resources
+                  used by the control plane
+                properties:
+                  eip:
+                    description: EIP configuration
+                    properties:
+                      id:
+                        type: string
+                    type: object
+                type: object
               ready:
                 default: false
                 description: Ready denotes that the CCEManagedControlPlane API Server

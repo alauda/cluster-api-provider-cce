@@ -30,7 +30,8 @@ import (
 	v1 "k8s.io/component-base/logs/api/v1"
 	_ "k8s.io/component-base/logs/json/register"
 	"k8s.io/klog/v2"
-
+	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.
+	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
 	// to ensure that exec-entrypoint and run can make use of them.
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
@@ -47,6 +48,7 @@ import (
 	ccecontroller "github.com/alauda/cluster-api-provider-cce/internal/controller"
 	"github.com/alauda/cluster-api-provider-cce/pkg/logger"
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
+	expclusterv1 "sigs.k8s.io/cluster-api/exp/api/v1beta1"
 	//+kubebuilder:scaffold:imports
 )
 
@@ -58,6 +60,7 @@ var (
 func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 	utilruntime.Must(clusterv1.AddToScheme(scheme))
+	utilruntime.Must(expclusterv1.AddToScheme(scheme))
 	utilruntime.Must(infrastructurev1beta1.AddToScheme(scheme))
 	//+kubebuilder:scaffold:scheme
 }

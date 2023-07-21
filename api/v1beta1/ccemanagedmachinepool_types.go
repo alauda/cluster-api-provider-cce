@@ -25,6 +25,24 @@ import (
 // EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
 // NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
 
+const (
+	// ManagedMachinePoolFinalizer allows the controller to clean up resources on delete.
+	ManagedMachinePoolFinalizer = "ccemanagedmachinepools.infrastructure.cluster.x-k8s.io"
+
+	// InfraMachinePoolIDLabel is the label set on machineool linked to a nodepool
+	InfraMachinePoolIDLabel = "cluster.x-k8s.io/infra-machinepool-id"
+)
+
+const (
+	// CCENodepoolReadyCondition condition reports on the successful reconciliation of cce control plane.
+	CCENodepoolReadyCondition clusterv1.ConditionType = "CCENodepoolReady"
+	// CCENodepoolReconciliationFailedReason used to report failures while reconciling CCE control plane.
+	CCENodepoolReconciliationFailedReason = "CCENodepoolReconciliationFailed"
+	// WaitingForCCEControlPlaneReason used when the machine pool is waiting for
+	// CCE control plane infrastructure to be ready before proceeding.
+	WaitingForCCEControlPlaneReason = "WaitingForCCEControlPlane"
+)
+
 // 如下字段不可使用：  - node.kubernetes.io/memory-pressure - node.kubernetes.io/disk-pressure - node.kubernetes.io/out-of-disk - node.kubernetes.io/unschedulable - node.kubernetes.io/network-unavailable
 type Taint struct {
 	// 键
@@ -48,9 +66,6 @@ type Volume struct {
 
 // CCEManagedMachinePoolSpec defines the desired state of CCEManagedMachinePool
 type CCEManagedMachinePoolSpec struct {
-	// 节点池名称
-	Name *string `json:"name,omitempty"`
-
 	// 节点池节点个数
 	Replicas *int32 `json:"replicas,omitempty"`
 
@@ -77,7 +92,7 @@ type CCEManagedMachinePoolSpec struct {
 	Taints *[]Taint `json:"taints,omitempty"`
 
 	// 节点子网 ID
-	Subnet *SubnetSpec `json:"subnet,omitempty"`
+	Subnet *Subnet `json:"subnet,omitempty"`
 
 	// ProviderIDList are the provider IDs of instances in the
 	// autoscaling group corresponding to the nodegroup represented by this
@@ -152,6 +167,23 @@ type CCEManagedMachinePool struct {
 
 	Spec   CCEManagedMachinePoolSpec   `json:"spec,omitempty"`
 	Status CCEManagedMachinePoolStatus `json:"status,omitempty"`
+}
+
+// GetConditions returns the observations of the operational state of the CCEManagedMachinePool resource.
+func (r *CCEManagedMachinePool) GetConditions() clusterv1.Conditions {
+	return r.Status.Conditions
+}
+
+// SetConditions sets the underlying service state of the CCEManagedMachinePool to the predescribed clusterv1.Conditions.
+func (r *CCEManagedMachinePool) SetConditions(conditions clusterv1.Conditions) {
+	r.Status.Conditions = conditions
+}
+
+func (r *CCEManagedMachinePool) InfraMachinePoolID() string {
+	if id, ok := r.GetLabels()[InfraMachinePoolIDLabel]; ok {
+		return id
+	}
+	return ""
 }
 
 //+kubebuilder:object:root=true
