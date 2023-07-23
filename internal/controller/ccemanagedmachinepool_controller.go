@@ -179,6 +179,15 @@ func (r *CCEManagedMachinePoolReconciler) SetupWithManager(ctx context.Context, 
 func (r *CCEManagedMachinePoolReconciler) reconcileDelete(_ context.Context, machinePoolScope *scope.ManagedMachinePoolScope) (ctrl.Result, error) {
 	machinePoolScope.Info("Reconciling deletion of CCEManagedMachinePool")
 
+	ccesvc, err := cce.NewNodepoolService(machinePoolScope)
+	if err != nil {
+		return reconcile.Result{}, fmt.Errorf("failed to init cce service for CCEManagedMachinePool %s/%s: %w", machinePoolScope.Namespace(), machinePoolScope.Name(), err)
+	}
+
+	if err := ccesvc.ReconcilePoolDelete(); err != nil {
+		return reconcile.Result{}, errors.Wrapf(err, "failed to reconcile machine pool deletion for CCEManagedMachinePool %s/%s", machinePoolScope.ManagedMachinePool.Namespace, machinePoolScope.ManagedMachinePool.Name)
+	}
+
 	controllerutil.RemoveFinalizer(machinePoolScope.ManagedMachinePool, infrastructurev1beta1.ManagedMachinePoolFinalizer)
 	return ctrl.Result{}, nil
 }

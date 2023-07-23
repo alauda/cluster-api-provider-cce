@@ -2,6 +2,7 @@ package cce
 
 import (
 	"context"
+	"encoding/base64"
 	"fmt"
 
 	ccemodel "github.com/huaweicloud/huaweicloud-sdk-go-v3/services/cce/v3/model"
@@ -111,7 +112,6 @@ func (s *Service) createBaseKubeConfig(cluster *ccemodel.ShowClusterResponse, us
 			clusterName: {
 				Server:                fmt.Sprintf("https://%s", s.scope.ControlPlane.Spec.ControlPlaneEndpoint.String()),
 				InsecureSkipTLSVerify: true,
-				// CertificateAuthorityData: certData,
 			},
 		},
 		Contexts: map[string]*api.Context{
@@ -144,9 +144,16 @@ func (s *Service) generateClientData() ([]byte, []byte, error) {
 	}
 
 	clientCertificateData := (*certResp.Users)[0].User.ClientCertificateData
+	certData, err := base64.StdEncoding.DecodeString(*clientCertificateData)
+	if err != nil {
+		return nil, nil, fmt.Errorf("decoding cluster client cert: %w", err)
+	}
 	clientKeyData := (*certResp.Users)[0].User.ClientKeyData
-
-	return []byte(*clientCertificateData), []byte(*clientKeyData), nil
+	keyData, err := base64.StdEncoding.DecodeString(*clientKeyData)
+	if err != nil {
+		return nil, nil, fmt.Errorf("decoding cluster client key: %w", err)
+	}
+	return certData, keyData, nil
 }
 
 func (s *Service) updateCAPIKubeconfigSecret(ctx context.Context, configSecret *corev1.Secret, cluster *ccemodel.ShowClusterResponse) error {

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/huaweicloud/huaweicloud-sdk-go-v3/core/sdkerr"
 	ccemodel "github.com/huaweicloud/huaweicloud-sdk-go-v3/services/cce/v3/model"
 	"github.com/pkg/errors"
 	"k8s.io/utils/pointer"
@@ -29,6 +30,65 @@ func (s *NodepoolService) ReconcilePool(ctx context.Context) error {
 	}
 	conditions.MarkTrue(s.scope.ManagedMachinePool, infrastructurev1beta1.CCENodepoolReadyCondition)
 
+	return nil
+}
+
+func (s *NodepoolService) ReconcilePoolDelete() error {
+	s.scope.Debug("Reconciling deletion of CCE nodepool")
+
+	// cceNodepoolName := s.scope.Name()
+
+	np, err := s.showNodepool()
+	if err != nil {
+		return errors.Wrap(err, "failed to show CCE nodepool")
+	}
+
+	if np == nil {
+		return nil
+	}
+
+	if err := s.deleteNodepoolAndWait(); err != nil {
+		return errors.Wrap(err, "failed to delete nodepool")
+	}
+
+	s.scope.Debug("Delete nodepool completed successfully")
+
+	return nil
+}
+
+func (s *NodepoolService) deleteNodepoolAndWait() (reterr error) {
+	nodepoolName := s.scope.Name()
+	if err := s.scope.NodepoolReadyFalse(clusterv1.DeletingReason, ""); err != nil {
+		return err
+	}
+	defer func() {
+		if reterr != nil {
+			if err := s.scope.NodepoolReadyFalse("DeletingFailed", reterr.Error()); err != nil {
+				reterr = err
+			}
+		} else if err := s.scope.NodepoolReadyFalse(clusterv1.DeletedReason, ""); err != nil {
+			reterr = err
+		}
+	}()
+
+	request := &ccemodel.DeleteNodePoolRequest{}
+	request.ClusterId = s.scope.ControlPlane.InfraClusterID()
+	request.NodepoolId = s.scope.InfraMachinePoolID()
+	_, err := s.CCEClient.DeleteNodePool(request)
+	if err != nil {
+		if e, ok := err.(*sdkerr.ServiceResponseError); ok {
+			if e.StatusCode == 404 {
+				return nil
+			}
+			return errors.Wrap(err, "failed to delete nodepool")
+		}
+		return errors.Wrap(err, "failed to delete nodepool")
+	}
+	// wait until deleted
+	err = s.waitForNodepoolDeleted()
+	if err != nil {
+		return errors.Wrapf(err, "failed waiting for CCE nodepool %s to delete", nodepoolName)
+	}
 	return nil
 }
 
@@ -60,7 +120,7 @@ func (s *NodepoolService) reconcileNodepool(ctx context.Context) error {
 
 	switch *np.Status.Phase {
 	case ccemodel.GetNodePoolStatusPhaseEnum().SYNCHRONIZING, ccemodel.GetNodePoolStatusPhaseEnum().SYNCHRONIZED:
-		_, err = s.waitForNodeppolActive()
+		_, err = s.waitForNodepoolActive()
 	default:
 		break
 	}
@@ -78,6 +138,12 @@ func (s *NodepoolService) showNodepool() (*ccemodel.NodePool, error) {
 	request.NodepoolId = s.scope.InfraMachinePoolID()
 	response, err := s.CCEClient.ShowNodePool(request)
 	if err != nil {
+		if e, ok := err.(*sdkerr.ServiceResponseError); ok {
+			if e.StatusCode == 404 {
+				return nil, nil
+			}
+			return nil, errors.Wrap(err, "failed to show nodepool")
+		}
 		return nil, errors.Wrap(err, "failed to show nodepool")
 	}
 	return &ccemodel.NodePool{
@@ -209,7 +275,7 @@ func (s *NodepoolService) setStatus(np *ccemodel.NodePool) error {
 			if id, ok := node.Metadata.Annotations["kubernetes.io/node-pool.id"]; !ok || id != machinePoolID {
 				continue
 			}
-			providerIDList = append(providerIDList, fmt.Sprintf("cce:///%s/%s", node.Spec.Az, *node.Metadata.Uid))
+			providerIDList = append(providerIDList, fmt.Sprintf("cce:////%s/%s", node.Spec.Az, *node.Metadata.Uid))
 		}
 		managedPool.Spec.ProviderIDList = providerIDList
 		managedPool.Status.Replicas = *np.Status.CurrentNode
@@ -220,7 +286,7 @@ func (s *NodepoolService) setStatus(np *ccemodel.NodePool) error {
 	return nil
 }
 
-func (s *NodepoolService) waitForNodeppolActive() (*ccemodel.NodePool, error) {
+func (s *NodepoolService) waitForNodepoolActive() (*ccemodel.NodePool, error) {
 	nodepoolName := s.scope.ManagedMachinePool.GetName()
 	err := waitUntil(func() (bool, error) {
 		np, err := s.showNodepool()
@@ -248,6 +314,26 @@ func (s *NodepoolService) waitForNodeppolActive() (*ccemodel.NodePool, error) {
 	}
 
 	return np, nil
+}
+
+func (s *NodepoolService) waitForNodepoolDeleted() error {
+	err := waitUntil(func() (bool, error) {
+		np, err := s.showNodepool()
+		if err != nil {
+			return false, err
+		}
+		if np == nil {
+			return true, nil
+		}
+		if np.Status.Phase.Value() == ccemodel.GetNodePoolStatusPhaseEnum().DELETING.Value() {
+			return false, nil
+		}
+		return true, nil
+	}, 30*time.Second, 40)
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 func toTaintEffect(effect string) ccemodel.TaintEffect {

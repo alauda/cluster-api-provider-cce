@@ -35,5 +35,8 @@ func (s *Service) ReconcileNetwork() (err error) {
 
 // DeleteNetwork deletes the network of the given cluster.
 func (s *Service) DeleteNetwork() (err error) {
+	s.scope.Debug("Deleting network")
+
+	s.scope.Debug("Delete network completed successfully")
 	return nil
 }

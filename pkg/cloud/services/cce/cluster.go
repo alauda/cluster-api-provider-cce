@@ -289,6 +289,80 @@ func (s *Service) setStatus(status *ccemodel.ClusterStatus) error {
 func (s *Service) DeleteControlPlane() (err error) {
 	s.scope.Debug("Deleting CCE control plane")
 
+	// CCE Cluster
+	if err := s.deleteCluster(); err != nil {
+		return err
+	}
+
 	s.scope.Debug("Delete CCE control plane completed successfully")
+	return nil
+}
+
+// deleteCluster deletes an CCE cluster.
+func (s *Service) deleteCluster() error {
+	infraClusterID := s.scope.InfraClusterID()
+
+	if infraClusterID == "" {
+		s.scope.Debug("no CCE cluster id, skipping CCE cluster deletion")
+		return nil
+	}
+
+	cluster, err := s.showCCECluster(infraClusterID)
+	if err != nil {
+		return errors.Wrap(err, "unable to show CCE cluster")
+	}
+	if cluster == nil {
+		return nil
+	}
+
+	err = s.deleteClusterAndWait(infraClusterID)
+	if err != nil {
+		return errors.Wrap(err, "unable to delete CCE cluster")
+	}
+
+	return nil
+}
+
+func (s *Service) deleteClusterAndWait(infraClusterID string) error {
+	cluserName := s.scope.Name()
+	s.scope.Info("Deleting CCE cluster", "cluster", klog.KRef("", cluserName))
+
+	request := &ccemodel.DeleteClusterRequest{}
+	request.ClusterId = infraClusterID
+	_, err := s.CCEClient.DeleteCluster(request)
+	if err != nil {
+		if e, ok := err.(*sdkerr.ServiceResponseError); ok {
+			if e.StatusCode == 404 {
+				return nil
+			}
+			return errors.Wrap(err, "failed to delete cce cluster")
+		}
+		return errors.Wrap(err, "failed to delete cce cluster")
+	}
+	err = s.waitForClusterDeleted(infraClusterID)
+	if err != nil {
+		return errors.Wrapf(err, "failed waiting for cce cluster %s to delete", cluserName)
+	}
+
+	return nil
+}
+
+func (s *Service) waitForClusterDeleted(infraClusterID string) error {
+	err := waitUntil(func() (bool, error) {
+		c, err := s.showCCECluster(infraClusterID)
+		if err != nil {
+			return false, err
+		}
+		if c == nil {
+			return true, nil
+		}
+		if *c.Status.Phase == ccemodel.GetNodePoolStatusPhaseEnum().DELETING.Value() {
+			return false, nil
+		}
+		return true, nil
+	}, 30*time.Second, 40)
+	if err != nil {
+		return err
+	}
 	return nil
 }

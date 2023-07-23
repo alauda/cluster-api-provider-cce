@@ -7,6 +7,7 @@ import (
 	"k8s.io/klog/v2"
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 	expclusterv1 "sigs.k8s.io/cluster-api/exp/api/v1beta1"
+	"sigs.k8s.io/cluster-api/util/conditions"
 	"sigs.k8s.io/cluster-api/util/patch"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -117,4 +118,23 @@ func (s *ManagedMachinePoolScope) SetInfraMachinePoolID(nodepoolID string) {
 	}
 	lbs[infrastructurev1beta1.InfraMachinePoolIDLabel] = nodepoolID
 	s.ManagedMachinePool.SetLabels(lbs)
+}
+
+// NodepoolReadyFalse marks the ready condition false using warning if error isn't empty.
+func (s *ManagedMachinePoolScope) NodepoolReadyFalse(reason string, err string) error {
+	severity := clusterv1.ConditionSeverityWarning
+	if err == "" {
+		severity = clusterv1.ConditionSeverityInfo
+	}
+	conditions.MarkFalse(
+		s.ManagedMachinePool,
+		infrastructurev1beta1.CCENodepoolReadyCondition,
+		reason,
+		severity,
+		err,
+	)
+	if err := s.PatchObject(); err != nil {
+		return errors.Wrap(err, "failed to mark nodepool not ready")
+	}
+	return nil
 }

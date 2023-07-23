@@ -223,8 +223,14 @@ func (r *CCEManagedControlPlaneReconciler) reconcileDelete(ctx context.Context, 
 	if err != nil {
 		return reconcile.Result{}, fmt.Errorf("error deleting CCE cluster for CCE control plane %s/%s: %w", controlPlane.Namespace, controlPlane.Name, err)
 	}
+
 	if err := ccesvc.DeleteControlPlane(); err != nil {
 		log.Error(err, "error deleting CCE cluster for CCE control plane", "namespace", controlPlane.Namespace, "name", controlPlane.Name)
+		return reconcile.Result{}, err
+	}
+
+	if err := ccesvc.DeleteNetwork(); err != nil {
+		log.Error(err, "error deleting network for CCEManagedControlPlane", "namespace", controlPlane.Namespace, "name", controlPlane.Name)
 		return reconcile.Result{}, err
 	}
 
@@ -277,6 +283,17 @@ func (r *CCEManagedControlPlaneReconciler) dependencyCount(ctx context.Context, 
 	log.Info("looking for CCE cluster dependencies", "cluster", klog.KRef(namespace, clusterName))
 
 	dependencies := 0
+
+	listOptions := []client.ListOption{
+		client.InNamespace(namespace),
+		client.MatchingLabels(map[string]string{clusterv1.ClusterNameLabel: clusterName}),
+	}
+	managedMachinePools := &infrastructurev1beta1.CCEManagedMachinePoolList{}
+	if err := r.Client.List(ctx, managedMachinePools, listOptions...); err != nil {
+		return dependencies, fmt.Errorf("failed to list managed machine pools for cluster %s/%s: %w", namespace, clusterName, err)
+	}
+	log.Debug("tested for CCEManagedMachinePool dependencies", "count", len(managedMachinePools.Items))
+	dependencies += len(managedMachinePools.Items)
 
 	return dependencies, nil
 }
