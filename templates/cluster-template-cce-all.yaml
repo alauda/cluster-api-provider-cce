@@ -18,7 +18,7 @@
 apiVersion: cluster.x-k8s.io/v1beta1
 kind: Cluster
 metadata:
-  name: ait-chaowang-abc
+  name: ait-dev-abc
   namespace: cpaas-system
 spec:
   clusterNetwork:
@@ -31,16 +31,16 @@ spec:
   infrastructureRef:
     kind: CCEManagedCluster
     apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
-    name: ait-chaowang-abc
+    name: ait-dev-abc
   controlPlaneRef:
     kind: CCEManagedControlPlane
     apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
-    name: ait-chaowang-abc
+    name: ait-dev-abc
 ---
 kind: CCEManagedControlPlane
 apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
 metadata:
-  name: ait-chaowang-abc
+  name: ait-dev-abc
   namespace: cpaas-system
 spec:
   identityRef:
@@ -54,9 +54,9 @@ spec:
   network:
     mode: vpc-router
     vpc:
-      id: 23a9d5e1-4ca0-4605-825a-ebe2527d999b
+      id: cccde5d4-34aa-4258-b83a-cf76cf5b1b47
     subnet:
-      id: 47178c1f-2fae-4f9d-b69c-8659bab27ed3
+      id: f3fd0ad9-00e3-45f3-a009-a815cc0efd1d
   endpointAccess:
     public: true
 
@@ -64,40 +64,40 @@ spec:
 kind: CCEManagedCluster
 apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
 metadata:
-  name: ait-chaowang-abc
+  name: ait-dev-abc
   namespace: cpaas-system
 spec: {}
 ---
 apiVersion: cluster.x-k8s.io/v1beta1
 kind: MachinePool
 metadata:
-  name: ait-chaowang-pool-0
+  name: ait-dev-pool-0
   namespace: cpaas-system
 spec:
-  clusterName: "ait-chaowang-abc"
+  clusterName: "ait-dev-abc"
   replicas: 2
   template:
     spec:
-      clusterName: "ait-chaowang-abc"
+      clusterName: "ait-dev-abc"
       bootstrap:
         dataSecretName: ""
       infrastructureRef:
-        name: "ait-chaowang-pool-0"
+        name: "ait-dev-pool-0"
         apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
         kind: CCEManagedMachinePool
 ---
 apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
 kind: CCEManagedMachinePool
 metadata:
-  name: "ait-chaowang-pool-0"
+  name: "ait-dev-pool-0"
   namespace: cpaas-system
   labels:
-    cluster.x-k8s.io/cluster-name: ait-chaowang-abc
+    cluster.x-k8s.io/cluster-name: ait-dev-abc
 spec:
   replicas: 2
   flavor: c7n.large.2
   runtime: containerd
-  sshKeyName: KeyPair-e905
+  sshKeyName: KeyPair-2cc4
   rootVolume:
     size: 50
     volumetype: GPSSD
@@ -111,4 +111,4 @@ spec:
     value: test-v1
     effect: NoSchedule
   subnet:
-    id: 47178c1f-2fae-4f9d-b69c-8659bab27ed3
+    id: f3fd0ad9-00e3-45f3-a009-a815cc0efd1d
