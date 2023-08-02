@@ -12,7 +12,7 @@ global:
     allowPrivilegeEscalation: false
     capabilities:
       drop:
-      - ALL
+        - ALL
   namespace: cpaas-system
   labelBaseDomain: cpaas.io
   registry:
@@ -25,7 +25,6 @@ global:
   images:
     cluster_api_provider_cce:
       repository: ait/cluster-api-provider-cce
-      tag: v3.14.0
+      tag: v0.0.0-fix.3.1.g0a20bb58-build2
       code: gitlab-ce.alauda.cn/ait/cluster-api-provider-cce
       support_arm: true
-
