@@ -1,0 +1,28 @@
+---
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  labels:
+    cluster.x-k8s.io/provider: infrastructure-cce
+  name: capi-provider-cce-selfsigned-issuer
+  namespace: {{ .Values.global.namespace }}
+spec:
+  selfSigned: {}
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  labels:
+    cluster.x-k8s.io/provider: infrastructure-cce
+  name: capi-provider-cce-serving-cert
+  namespace: {{ .Values.global.namespace }}
+spec:
+  duration: {{.Values.global.certificate.duration}}
+  renewBefore: {{.Values.global.certificate.renewBefore}}
+  dnsNames:
+    - capi-provider-cce-webhook-service.{{ .Values.global.namespace }}.svc
+    - capi-provider-cce-webhook-service.{{ .Values.global.namespace }}.svc.cluster.local
+  issuerRef:
+    kind: Issuer
+    name: capi-provider-cce-selfsigned-issuer
+  secretName: capi-provider-cce-webhook-service-cert

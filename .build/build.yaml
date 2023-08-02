@@ -1,0 +1,365 @@
+apiVersion: builds.katanomi.dev/v1alpha1
+kind: Build
+spec:
+  git:
+    options:
+      depth: 1
+      resources:
+        limits:
+          cpu: 200m
+          memory: 200Mi
+        requests:
+          cpu: 200m
+          memory: 200Mi
+      retries: 0
+      timeout: 10m
+  tasks:
+    - name: unittest
+      runAfter: []
+      timeout: 30m
+      retries: 0
+      taskRef:
+        kind: ClusterTask
+        name: go-unit-test
+      workspaces:
+        - name: source
+          workspace: source
+      when: []
+      params:
+        - name: command
+          value: |-
+            export GO111MODULE=on
+            export GONOSUMDB="bitbucket.org/mathildetech/*,gomod.alauda.cn/*"
+            export GOPROXY='https://build-nexus.alauda.cn/repository/golang/,direct'
+            go test -v -cover -coverprofile ./coverage.out ./pkg/... ./cmd/...
+            go test -v -json -coverprofile=test-output/coverage-report ./... > test-output/test-report.json
+        - name: quality-gate-rules
+          value:
+            - lines-coverage=0
+            - passed-tests-rate=0
+    - name: build-amd
+      runAfter:
+        - unittest
+      timeout: 30m
+      retries: 0
+      taskRef:
+        kind: ClusterTask
+        name: go-build
+      workspaces:
+        - name: source
+          workspace: source
+        - name: cache
+          workspace: cache
+      when: []
+      params:
+        - name: command
+          value: |-
+            export GO111MODULE=on
+            export GOPROXY=https://build-nexus.alauda.cn/repository/golang/,direct
+            export GONOSUMDB="gitlab-ce.alauda.cn/*,gomod.alauda.cn/*,bitbucket.org/mathildetech/*"
+            export GOSUMDB=gosum.io+ce6e7565+AY5qEHUk/qmHc5btzW45JVoENfazw8LielDsaI+lEbq6
+            make build OS=linux ARCH=amd64
+        - name: build-outputs-path
+          value: []
+    - name: build-arm
+      runAfter:
+        - unittest
+      timeout: 30m
+      retries: 0
+      taskRef:
+        kind: ClusterTask
+        name: go-build
+      workspaces:
+        - name: source
+          workspace: source
+        - name: cache
+          workspace: cache
+      when: []
+      params:
+        - name: command
+          value: |-
+            export GO111MODULE=on
+            export GOPROXY=https://build-nexus.alauda.cn/repository/golang/,direct
+            export GONOSUMDB="gitlab-ce.alauda.cn/*,gomod.alauda.cn/*,bitbucket.org/mathildetech/*"
+            export GOSUMDB=gosum.io+ce6e7565+AY5qEHUk/qmHc5btzW45JVoENfazw8LielDsaI+lEbq6
+            make build OS=linux ARCH=arm64
+        - name: build-outputs-path
+          value: []
+    - name: gosec
+      runAfter:
+        - build-arm
+        - build-amd
+      timeout: 30m
+      retries: 0
+      taskRef:
+        kind: ClusterTask
+        name: golangci-lint
+      workspaces:
+        - name: source
+          workspace: source
+      when: []
+      params:
+        - name: command
+          value: golangci-lint run --concurrency 2
+        - name: quality-gate-rules
+          value:
+            - issues-count=490
+    - name: sonarqude-code-scan
+      runAfter:
+        - gosec
+      timeout: 30m
+      retries: 0
+      taskRef:
+        kind: ClusterTask
+        name: sonarqube-analysis
+      workspaces:
+        - name: source
+          workspace: source
+      params:
+        - name: server
+          value: https://build-sonar.alauda.cn
+        - name: quality-gate-rules
+          value:
+            - coverage-delta=15%
+            - duplication-delta=3%
+    - name: build-image-amd64
+      runAfter:
+        - sonarqude-code-scan
+      timeout: 30m
+      retries: 0
+      taskRef:
+        kind: ClusterTask
+        name: build-image-buildkit
+      workspaces:
+        - name: source
+          workspace: source
+      when: []
+      params:
+        - name: container-images
+          value:
+            - build-harbor.alauda.cn/ait/cluster-api-provider-cce
+        - name: dockerfile
+          value: ./Dockerfile
+        - name: labels
+          value:
+            - branch=$(build.git.branch.name)
+            - commit=$(build.git.lastCommit.id)
+        - name: extra-args
+          value: commit_id=$(build.git.lastCommit.id),app_version=$(build.git.version)
+    - name: build-image-arm64
+      runAfter:
+        - sonarqude-code-scan
+      timeout: 30m
+      retries: 0
+      taskRef:
+        kind: ClusterTask
+        name: build-image-buildkit
+      workspaces:
+        - name: source
+          workspace: source
+      when: []
+      params:
+        - name: container-images
+          value:
+            - build-harbor.alauda.cn/ait/cluster-api-provider-cce
+        - name: dockerfile
+          value: ./Dockerfile
+        - name: labels
+          value:
+            - branch=$(build.git.branch.name)
+            - commit=$(build.git.lastCommit.id)
+        - name: extra-args
+          value: commit_id=$(build.git.lastCommit.id),app_version=$(build.git.version)
+    - name: build-image
+      runAfter:
+        - build-image-amd64
+        - build-image-arm64
+      timeout: 30m
+      retries: 0
+      taskRef:
+        kind: ClusterTask
+        name: merge-image-buildkit
+      workspaces:
+        - name: source
+          workspace: source
+      when: []
+      params:
+        - name: container-images
+          value:
+            - build-harbor.alauda.cn/ait/cluster-api-provider-cce:$(build.git.version)
+        - name: source-image-digests
+          value:
+            - $(tasks.build-image-amd64.results.ociContainerImageBuild-url)
+            - $(tasks.build-image-arm64.results.ociContainerImageBuild-url)
+    - name: chart-build
+      runAfter:
+        - build-image
+      timeout: 30m
+      retries: 0
+      taskRef:
+        kind: ClusterTask
+        name: chart-build
+      workspaces:
+        - name: source
+          workspace: source
+      when: []
+      params:
+        - name: helm-images
+          value:
+            - build-harbor.alauda.cn/ait/chart-cluster-api-provider-cce:$(build.git.version)
+        - name: dir
+          value: ./chart
+        - name: version
+          value:
+            - chart-version=$(build.git.version.short)
+        - name: values
+          value:
+            - global.images.cluster_api_provider_cce.tag=$(build.git.version)
+        - name: annotations
+          value:
+            - branch=$(build.git.branch.name)
+            - commit=$(build.git.lastCommit.id)
+        - name: update-dependencies
+          value: "true"
+    - name: commit-push
+      runAfter:
+        - chart-build
+      timeout: 30m
+      retries: 0
+      taskRef:
+        kind: ClusterTask
+        name: alauda-git-commit-push
+      workspaces:
+        - name: source
+          workspace: source
+      when: []
+      params:
+        - name: branch
+          value: $(build.git.branch.name)
+  finally:
+    - name: release-tag
+      when:
+        - input: $(build.git.versionPhase)
+          operator: in
+          values:
+            - custom
+            - ga
+        - input: $(tasks.status)
+          operator: in
+          values:
+            - Succeeded
+            - Completed
+      timeout: 30m
+      retries: 1
+      taskRef:
+        kind: ClusterTask
+        name: alauda-release-tag
+      workspaces:
+        - name: source
+          workspace: source
+      params:
+        - name: verbose
+          value: "false"
+        - name: version
+          value: $(build.git.version.docker)
+  workspaces:
+    - description: |
+        This workspace is shared among all the pipeline tasks to read/write common resources
+      name: source
+    - description: golang cache
+      name: cache
+      optional: true
+  runTemplate:
+    spec:
+      taskRunSpecs:
+        - pipelineTaskName: build-image-amd64
+          stepOverrides:
+            - name: build
+              resources:
+                requests:
+                  cpu: 950m
+                limits:
+                  cpu: 1900m
+            - name: push
+              resources:
+                requests:
+                  cpu: 950m
+                limits:
+                  cpu: 1900m
+        - pipelineTaskName: build-image-arm64
+          taskPodTemplate:
+            nodeSelector:
+              kubernetes.io/arch: arm64
+            Tolerations:
+              - key: build-arm
+                operator: Exists
+                effect: NoSchedule
+          stepOverrides:
+            - name: build
+              resources:
+                requests:
+                  cpu: 950m
+                limits:
+                  cpu: 1900m
+            - name: push
+              resources:
+                requests:
+                  cpu: 950m
+                limits:
+                  cpu: 1900m
+        - pipelineTaskName: build-image
+          stepOverrides:
+            - name: merge
+              resources:
+                requests:
+                  cpu: 1200m
+                  memory: 1200Mi
+                limits:
+                  cpu: 1200m
+                  memory: 1200Mi
+        - pipelineTaskName: build-amd
+          stepOverrides:
+            - name: go-build
+              resources:
+                requests:
+                  cpu: 1500m
+                  memory: 1750Mi
+                limits:
+                  cpu: 1500m
+                  memory: 1750Mi
+        - pipelineTaskName: build-arm
+          stepOverrides:
+            - name: go-build
+              resources:
+                requests:
+                  cpu: 1500m
+                  memory: 1750Mi
+                limits:
+                  cpu: 1500m
+                  memory: 1750Mi
+        - pipelineTaskName: unittest
+          stepOverrides:
+            - name: prepare
+              resources:
+                requests:
+                  cpu: 1333m
+                  memory: 1333Mi
+                limits:
+                  cpu: 4000m
+                  memory: 4000Mi
+            - name: test
+              resources:
+                requests:
+                  cpu: 1333m
+                  memory: 1333Mi
+                limits:
+                  cpu: 4000m
+                  memory: 4000Mi
+            - name: analysis
+              resources:
+                requests:
+                  cpu: 1334m
+                  memory: 1334Mi
+                limits:
+                  cpu: 4000m
+                  memory: 4000Mi

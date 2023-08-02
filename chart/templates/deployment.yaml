@@ -1,0 +1,100 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    cluster.x-k8s.io/provider: infrastructure-cce
+    control-plane: capi-provider-cce-controller-manager
+  name: capi-provider-cce-controller-manager
+  namespace: {{ .Values.global.namespace }}
+spec:
+  replicas: {{ .Values.global.replicas }}
+  selector:
+    matchLabels:
+      cluster.x-k8s.io/provider: infrastructure-cce
+      control-plane: capi-provider-cce-controller-manager
+  template:
+    metadata:
+      labels:
+        cluster.x-k8s.io/provider: infrastructure-cce
+        control-plane: capi-provider-cce-controller-manager
+        {{ .Values.global.labelBaseDomain }}/product: "Platform-Center"
+    spec:
+      {{- if .Values.global.podSecurityContext.enabled }}
+      securityContext: {{- omit .Values.global.podSecurityContext "enabled" | toYaml | nindent 8 }}
+      {{- end }}
+      nodeSelector:
+        kubernetes.io/os: linux
+        {{- range $key, $val := .Values.global.nodeSelector }}
+        {{ $key }}: {{ $val | quote }}
+        {{- end }}
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchExpressions:
+                  - key: cluster.x-k8s.io/provider
+                    operator: In
+                    values:
+                      - infrastructure-cce
+                  - key: control-plane
+                    operator: In
+                    values:
+                      - capi-provider-cce-controller-manager
+              topologyKey: kubernetes.io/hostname
+      containers:
+        - args:
+            - --leader-elect
+            - --v={{ .Values.global.logLevel }}
+            - --metrics-bind-address=0.0.0.0:8080
+            - --health-probe-bind-address=0.0.0.0:8081
+            - --webhook-port=9443
+          image: {{ .Values.global.registry.address }}/{{ .Values.global.images.cluster_api_provider_cce.repository }}:{{ .Values.global.images.cluster_api_provider_cce.tag }}
+          imagePullPolicy: IfNotPresent
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8081
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: 8081
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          name: manager
+          ports:
+            - containerPort: 9443
+              name: webhook-server
+              protocol: TCP
+            - containerPort: 8081
+              name: healthz
+              protocol: TCP
+            - containerPort: 8080
+              name: metrics
+              protocol: TCP
+        {{- if .Values.global.containerSecurityContext.enabled }}
+          securityContext: {{- omit .Values.global.containerSecurityContext "enabled" | toYaml | nindent 10 }}
+        {{- end }}
+          volumeMounts:
+            - mountPath: /tmp/k8s-webhook-server/serving-certs
+              name: cert
+              readOnly: true
+      serviceAccountName: capi-provider-cce-controller-manager
+      terminationGracePeriodSeconds: 10
+      tolerations:
+        - effect: NoSchedule
+          key: node-role.kubernetes.io/master
+          operator: Exists
+        - effect: NoSchedule
+          key: node-role.kubernetes.io/control-plane
+          operator: Exists
+        - effect: NoSchedule
+          key: node-role.kubernetes.io/cpaas-system
+          operator: Exists
+      volumes:
+        - name: cert
+          secret:
+            defaultMode: 420
+            secretName: capi-provider-cce-webhook-service-cert

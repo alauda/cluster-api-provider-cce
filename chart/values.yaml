@@ -1,0 +1,31 @@
+global:
+  logLevel: 0
+  replicas: 2
+  nodeSelector: {}
+  podSecurityContext:
+    enabled: true
+    fsGroup: 697
+  containerSecurityContext:
+    enabled: true
+    runAsUser: 697
+    runAsGroup: 697
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+      - ALL
+  namespace: cpaas-system
+  labelBaseDomain: cpaas.io
+  registry:
+    address: harbor.alauda.cn
+    imagePullSecrets: []
+  certificate:
+    duration: 87600h0m0s # 10y
+    renewBefore: 720h0m0s # 30d
+  platformUrl: https://127.0.0.1
+  images:
+    cluster_api_provider_cce:
+      repository: ait/cluster-api-provider-cce
+      tag: v3.14.0
+      code: gitlab-ce.alauda.cn/ait/cluster-api-provider-cce
+      support_arm: true
+

@@ -1,0 +1,5 @@
+apiVersion: v2
+name: cluster-api-provider-cce
+version: v3.14.0
+description: cluster api provider cce
+annotations: {}

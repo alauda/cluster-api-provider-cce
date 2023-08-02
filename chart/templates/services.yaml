@@ -1,0 +1,30 @@
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    cluster.x-k8s.io/provider: infrastructure-cce
+  name: capi-provider-cce-metrics-service
+  namespace: {{ .Values.global.namespace }}
+spec:
+  ports:
+    - port: 8080
+      protocol: TCP
+      targetPort: metrics
+  selector:
+    cluster.x-k8s.io/provider: infrastructure-cce
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    cluster.x-k8s.io/provider: infrastructure-cce
+  name: capi-provider-cce-webhook-service
+  namespace: {{ .Values.global.namespace }}
+spec:
+  ports:
+    - port: 9443
+      targetPort: webhook-server
+  selector:
+    cluster.x-k8s.io/provider: infrastructure-cce
