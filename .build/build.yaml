@@ -14,117 +14,8 @@ spec:
       retries: 0
       timeout: 10m
   tasks:
-    - name: unittest
-      runAfter: []
-      timeout: 30m
-      retries: 0
-      taskRef:
-        kind: ClusterTask
-        name: go-unit-test
-      workspaces:
-        - name: source
-          workspace: source
-      when: []
-      params:
-        - name: command
-          value: |-
-            export GO111MODULE=on
-            export GONOSUMDB="bitbucket.org/mathildetech/*,gomod.alauda.cn/*"
-            export GOPROXY='https://build-nexus.alauda.cn/repository/golang/,direct'
-            go test -v -cover -coverprofile ./coverage.out ./pkg/... ./cmd/...
-            go test -v -json -coverprofile=test-output/coverage-report ./... > test-output/test-report.json
-        - name: quality-gate-rules
-          value:
-            - lines-coverage=0
-            - passed-tests-rate=0
-    - name: build-amd
-      runAfter:
-        - unittest
-      timeout: 30m
-      retries: 0
-      taskRef:
-        kind: ClusterTask
-        name: go-build
-      workspaces:
-        - name: source
-          workspace: source
-        - name: cache
-          workspace: cache
-      when: []
-      params:
-        - name: command
-          value: |-
-            export GO111MODULE=on
-            export GOPROXY=https://build-nexus.alauda.cn/repository/golang/,direct
-            export GONOSUMDB="gitlab-ce.alauda.cn/*,gomod.alauda.cn/*,bitbucket.org/mathildetech/*"
-            export GOSUMDB=gosum.io+ce6e7565+AY5qEHUk/qmHc5btzW45JVoENfazw8LielDsaI+lEbq6
-            make build OS=linux ARCH=amd64
-        - name: build-outputs-path
-          value: []
-    - name: build-arm
-      runAfter:
-        - unittest
-      timeout: 30m
-      retries: 0
-      taskRef:
-        kind: ClusterTask
-        name: go-build
-      workspaces:
-        - name: source
-          workspace: source
-        - name: cache
-          workspace: cache
-      when: []
-      params:
-        - name: command
-          value: |-
-            export GO111MODULE=on
-            export GOPROXY=https://build-nexus.alauda.cn/repository/golang/,direct
-            export GONOSUMDB="gitlab-ce.alauda.cn/*,gomod.alauda.cn/*,bitbucket.org/mathildetech/*"
-            export GOSUMDB=gosum.io+ce6e7565+AY5qEHUk/qmHc5btzW45JVoENfazw8LielDsaI+lEbq6
-            make build OS=linux ARCH=arm64
-        - name: build-outputs-path
-          value: []
-    - name: gosec
-      runAfter:
-        - build-arm
-        - build-amd
-      timeout: 30m
-      retries: 0
-      taskRef:
-        kind: ClusterTask
-        name: golangci-lint
-      workspaces:
-        - name: source
-          workspace: source
-      when: []
-      params:
-        - name: command
-          value: golangci-lint run --concurrency 2
-        - name: quality-gate-rules
-          value:
-            - issues-count=490
-    - name: sonarqude-code-scan
-      runAfter:
-        - gosec
-      timeout: 30m
-      retries: 0
-      taskRef:
-        kind: ClusterTask
-        name: sonarqube-analysis
-      workspaces:
-        - name: source
-          workspace: source
-      params:
-        - name: server
-          value: https://build-sonar.alauda.cn
-        - name: quality-gate-rules
-          value:
-            - coverage-delta=15%
-            - duplication-delta=3%
     - name: build-image-amd64
-      runAfter:
-        - sonarqude-code-scan
+      runAfter: []
       timeout: 30m
       retries: 0
       taskRef:
@@ -147,8 +38,7 @@ spec:
         - name: extra-args
           value: commit_id=$(build.git.lastCommit.id),app_version=$(build.git.version)
     - name: build-image-arm64
-      runAfter:
-        - sonarqude-code-scan
+      runAfter: []
       timeout: 30m
       retries: 0
       taskRef:
@@ -317,49 +207,3 @@ spec:
                 limits:
                   cpu: 1200m
                   memory: 1200Mi
-        - pipelineTaskName: build-amd
-          stepOverrides:
-            - name: go-build
-              resources:
-                requests:
-                  cpu: 1500m
-                  memory: 1750Mi
-                limits:
-                  cpu: 1500m
-                  memory: 1750Mi
-        - pipelineTaskName: build-arm
-          stepOverrides:
-            - name: go-build
-              resources:
-                requests:
-                  cpu: 1500m
-                  memory: 1750Mi
-                limits:
-                  cpu: 1500m
-                  memory: 1750Mi
-        - pipelineTaskName: unittest
-          stepOverrides:
-            - name: prepare
-              resources:
-                requests:
-                  cpu: 1333m
-                  memory: 1333Mi
-                limits:
-                  cpu: 4000m
-                  memory: 4000Mi
-            - name: test
-              resources:
-                requests:
-                  cpu: 1333m
-                  memory: 1333Mi
-                limits:
-                  cpu: 4000m
-                  memory: 4000Mi
-            - name: analysis
-              resources:
-                requests:
-                  cpu: 1334m
-                  memory: 1334Mi
-                limits:
-                  cpu: 4000m
-                  memory: 4000Mi

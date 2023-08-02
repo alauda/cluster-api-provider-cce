@@ -23,6 +23,6 @@ LABEL OPS_DISTROLESS_TAG="${OPS_DISTROLESS_TAG}"
 USER ${ALAUDA_UID}:${ALAUDA_GID}
 
 COPY --from=builder /src/bin/manager /
-WORKDIR /opt/
+WORKDIR /
 
 ENTRYPOINT ["/manager"]
