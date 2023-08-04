@@ -101,7 +101,7 @@ func (s *Service) createBaseKubeConfig(cluster *ccemodel.ShowClusterResponse, us
 	contextName := fmt.Sprintf("%s@%s", userName, clusterName)
 
 	// create cce cert
-	caData, clientCertificateData, clientKeyData, err := s.generateClientData()
+	server, caData, clientCertificateData, clientKeyData, err := s.generateClientData()
 	if err != nil {
 		return nil, err
 	}
@@ -110,8 +110,7 @@ func (s *Service) createBaseKubeConfig(cluster *ccemodel.ShowClusterResponse, us
 		APIVersion: api.SchemeGroupVersion.Version,
 		Clusters: map[string]*api.Cluster{
 			clusterName: {
-				Server: fmt.Sprintf("https://%s", s.scope.ControlPlane.Spec.ControlPlaneEndpoint.String()),
-				//InsecureSkipTLSVerify: true,
+				Server:                   server,
 				CertificateAuthorityData: caData,
 			},
 		},
@@ -133,7 +132,7 @@ func (s *Service) createBaseKubeConfig(cluster *ccemodel.ShowClusterResponse, us
 	return cfg, nil
 }
 
-func (s *Service) generateClientData() ([]byte, []byte, []byte, error) {
+func (s *Service) generateClientData() (server string, caData []byte, certData []byte, keyData []byte, err error) {
 	certReq := &ccemodel.CreateKubernetesClusterCertRequest{}
 	certReq.ClusterId = s.scope.InfraClusterID()
 	certReq.Body = &ccemodel.CertDuration{
@@ -141,35 +140,36 @@ func (s *Service) generateClientData() ([]byte, []byte, []byte, error) {
 	}
 	certResp, err := s.CCEClient.CreateKubernetesClusterCert(certReq)
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("failed to create CCE cluster cert: %w", err)
+		err = fmt.Errorf("failed to create CCE cluster cert: %w", err)
+		return
 	}
-	//clusers :=
-	var caData []byte
 	for _, c := range *certResp.Clusters {
 		clusername := "internalCluster"
 		if *s.scope.ControlPlane.Spec.EndpointAccess.Public {
-			clusername = "externalCluster"
+			clusername = "externalClusterTLSVerify"
 		}
 		if *c.Name == clusername {
 			caData, err = base64.StdEncoding.DecodeString(*c.Cluster.CertificateAuthorityData)
 			if err != nil {
-				return nil, nil, nil, fmt.Errorf("decoding cluster client cert: %w", err)
+				err = fmt.Errorf("decoding cluster client cert: %w", err)
+				return
 			}
 		}
-
 	}
 
 	clientCertificateData := (*certResp.Users)[0].User.ClientCertificateData
-	certData, err := base64.StdEncoding.DecodeString(*clientCertificateData)
+	certData, err = base64.StdEncoding.DecodeString(*clientCertificateData)
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("decoding cluster client cert: %w", err)
+		err = fmt.Errorf("decoding cluster client cert: %w", err)
+		return
 	}
 	clientKeyData := (*certResp.Users)[0].User.ClientKeyData
-	keyData, err := base64.StdEncoding.DecodeString(*clientKeyData)
+	keyData, err = base64.StdEncoding.DecodeString(*clientKeyData)
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("decoding cluster client key: %w", err)
+		err = fmt.Errorf("decoding cluster client key: %w", err)
+		return
 	}
-	return caData, certData, keyData, nil
+	return
 }
 
 func (s *Service) updateCAPIKubeconfigSecret(ctx context.Context, configSecret *corev1.Secret, cluster *ccemodel.ShowClusterResponse) error {
@@ -185,12 +185,12 @@ func (s *Service) updateCAPIKubeconfigSecret(ctx context.Context, configSecret *
 		return errors.Wrap(err, "failed to convert kubeconfig Secret into a clientcmdapi.Config")
 	}
 
-	caData, clientCertificateData, clientKeyData, err := s.generateClientData()
+	server, caData, clientCertificateData, clientKeyData, err := s.generateClientData()
 	if err != nil {
 		return err
 	}
 	clusterName := s.scope.InfraClusterName()
-	config.Clusters[clusterName].Server = fmt.Sprintf("https://%s", s.scope.ControlPlane.Spec.ControlPlaneEndpoint.String())
+	config.Clusters[clusterName].Server = server
 	config.Clusters[clusterName].CertificateAuthorityData = caData
 
 	userName := s.getKubeConfigUserName(s.scope.InfraClusterName(), false)
