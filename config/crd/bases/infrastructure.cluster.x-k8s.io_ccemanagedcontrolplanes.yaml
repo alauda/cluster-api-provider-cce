@@ -114,6 +114,11 @@ spec:
                     description: 网络模型，overlay_l2 - 容器隧道网络，vpc-router - VPC网络，eni -
                       云原生网络2.0
                     type: string
+                  securityGroup:
+                    properties:
+                      id:
+                        type: string
+                    type: object
                   subnet:
                     description: Subnet configuration.
                     properties:
@@ -209,6 +214,25 @@ spec:
                 properties:
                   eip:
                     description: EIP configuration
+                    properties:
+                      id:
+                        type: string
+                    type: object
+                  nat:
+                    properties:
+                      eipId:
+                        type: string
+                      gatewayId:
+                        type: string
+                      ruleId:
+                        type: string
+                    type: object
+                  subnet:
+                    properties:
+                      id:
+                        type: string
+                    type: object
+                  vpc:
                     properties:
                       id:
                         type: string

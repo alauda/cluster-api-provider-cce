@@ -6,6 +6,7 @@ import (
 	"github.com/huaweicloud/huaweicloud-sdk-go-v3/core/sdkerr"
 	vpcmodel "github.com/huaweicloud/huaweicloud-sdk-go-v3/services/vpc/v2/model"
 	"github.com/pkg/errors"
+	"k8s.io/utils/pointer"
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 	"sigs.k8s.io/cluster-api/util/conditions"
 
@@ -16,6 +17,8 @@ import (
 const (
 	defaultSubnetCidr = "192.168.0.0/24"
 	defaultSubnetIP   = "192.168.0.1"
+	primaryDns        = "100.125.1.250"
+	secondaryDns      = "100.125.64.250"
 )
 
 func (s *Service) reconcileSubnets() error {
@@ -38,6 +41,7 @@ func (s *Service) reconcileSubnets() error {
 		return errors.Wrap(err, "failed to create new subnet")
 	}
 	s.scope.ControlPlane.Spec.NetworkSpec.Subnet.ID = subnet.ID
+	s.scope.ControlPlane.Status.Network.Subnet.ID = subnet.ID
 	return nil
 }
 
@@ -48,12 +52,29 @@ func (s *Service) createSubnet() (*infrastructurev1beta1.Subnet, error) {
 		"self-built*true",
 	}
 	vpcId := s.scope.ControlPlane.Spec.NetworkSpec.VPC.ID
+	dnsList := []string{
+		primaryDns,
+		secondaryDns,
+	}
+	extraDhcpOpts := []vpcmodel.ExtraDhcpOption{
+		{
+			OptName: vpcmodel.GetExtraDhcpOptionOptNameEnum().ADDRESSTIME,
+		},
+		{
+			OptName: vpcmodel.GetExtraDhcpOptionOptNameEnum().NTP,
+		},
+	}
 	subnetbody := &vpcmodel.CreateSubnetOption{
-		Name:      nameSubnet,
-		Cidr:      defaultSubnetCidr,
-		VpcId:     vpcId,
-		GatewayIp: defaultSubnetIP,
-		Tags:      &listTagsSubnet,
+		Name:          nameSubnet,
+		Cidr:          defaultSubnetCidr,
+		VpcId:         vpcId,
+		GatewayIp:     defaultSubnetIP,
+		Tags:          &listTagsSubnet,
+		DhcpEnable:    pointer.Bool(true),
+		PrimaryDns:    pointer.String(primaryDns),
+		SecondaryDns:  pointer.String(secondaryDns),
+		DnsList:       &dnsList,
+		ExtraDhcpOpts: &extraDhcpOpts,
 	}
 	request.Body = &vpcmodel.CreateSubnetRequestBody{
 		Subnet: subnetbody,
@@ -93,4 +114,16 @@ func (s *Service) listSubnets(vpcId string) (*vpcmodel.ListSubnetsResponse, erro
 		return nil, errors.Wrap(err, "failed to list subnets")
 	}
 	return response, nil
+}
+
+func (s *Service) deleteSubnet(vpcid, subnetId string) error {
+	request := &vpcmodel.DeleteSubnetRequest{
+		VpcId:    vpcid,
+		SubnetId: subnetId,
+	}
+	_, err := s.VPCClient.DeleteSubnet(request)
+	if err != nil {
+		return errors.Wrap(err, "failed to delete subnet")
+	}
+	return nil
 }

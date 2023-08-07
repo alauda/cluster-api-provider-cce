@@ -6,6 +6,7 @@ import (
 
 	ccemodel "github.com/huaweicloud/huaweicloud-sdk-go-v3/services/cce/v3/model"
 	eipmodel "github.com/huaweicloud/huaweicloud-sdk-go-v3/services/eip/v2/model"
+	"github.com/pkg/errors"
 	"k8s.io/klog/v2"
 	"k8s.io/utils/pointer"
 
@@ -31,6 +32,37 @@ func (s *Service) reconcileEIP(ctx context.Context) error {
 	}
 
 	// create EIP
+	eip, err := s.createEIP()
+	if err != nil {
+		return errors.Wrap(err, "failed to create new vpc")
+	}
+	// set status id
+	s.scope.ControlPlane.Status.Network.EIP.ID = eip.ID
+
+	// bind EIP
+	s.scope.Debug("ready to binding EIP", "cluster", klog.KRef("", s.scope.InfraClusterName()))
+	bindEIPReq := &ccemodel.UpdateClusterEipRequest{
+		ClusterId: s.scope.InfraClusterID(),
+	}
+	specSpec := &ccemodel.MasterEipRequestSpecSpec{
+		Id: pointer.String(eip.ID),
+	}
+	actionSpec := ccemodel.GetMasterEipRequestSpecActionEnum().BIND
+	specbody := &ccemodel.MasterEipRequestSpec{
+		Action: &actionSpec,
+		Spec:   specSpec,
+	}
+	bindEIPReq.Body = &ccemodel.MasterEipRequest{
+		Spec: specbody,
+	}
+	_, err = s.CCEClient.UpdateClusterEip(bindEIPReq)
+	if err != nil {
+		return fmt.Errorf("failed to bind EIP: %w", err)
+	}
+	return nil
+}
+
+func (s *Service) createEIP() (*infrastructurev1beta1.EIP, error) {
 	s.scope.Debug("ready to creating EIP", "cluster", klog.KRef("", s.scope.InfraClusterName()))
 	eipReq := &eipmodel.CreatePublicipRequest{}
 	publicipbody := &eipmodel.CreatePublicipOption{
@@ -51,34 +83,18 @@ func (s *Service) reconcileEIP(ctx context.Context) error {
 	}
 	eipRes, err := s.EIPClient.CreatePublicip(eipReq)
 	if err != nil {
-		return fmt.Errorf("failed to create EIP: %w", err)
+		return nil, fmt.Errorf("failed to create EIP: %w", err)
 	}
+	return &infrastructurev1beta1.EIP{ID: *eipRes.Publicip.Id}, nil
+}
 
-	s.scope.ControlPlane.Status.Network = infrastructurev1beta1.NetworkStatus{
-		EIP: infrastructurev1beta1.EIP{
-			ID: pointer.StringDeref(eipRes.Publicip.Id, ""),
-		},
+func (s *Service) deleteEIP(id string) error {
+	request := &eipmodel.DeletePublicipRequest{
+		PublicipId: id,
 	}
-
-	// bind EIP
-	s.scope.Debug("ready to binding EIP", "cluster", klog.KRef("", s.scope.InfraClusterName()))
-	bindEIPReq := &ccemodel.UpdateClusterEipRequest{
-		ClusterId: s.scope.InfraClusterID(),
-	}
-	specSpec := &ccemodel.MasterEipRequestSpecSpec{
-		Id: eipRes.Publicip.Id,
-	}
-	actionSpec := ccemodel.GetMasterEipRequestSpecActionEnum().BIND
-	specbody := &ccemodel.MasterEipRequestSpec{
-		Action: &actionSpec,
-		Spec:   specSpec,
-	}
-	bindEIPReq.Body = &ccemodel.MasterEipRequest{
-		Spec: specbody,
-	}
-	_, err = s.CCEClient.UpdateClusterEip(bindEIPReq)
+	_, err := s.EIPClient.DeletePublicip(request)
 	if err != nil {
-		return fmt.Errorf("failed to bind EIP: %w", err)
+		return errors.Wrap(err, "failed to delete eip")
 	}
 	return nil
 }

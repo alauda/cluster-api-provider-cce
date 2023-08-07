@@ -64,6 +64,13 @@ const (
 )
 
 const (
+	// NatReadyCondition reports on the successful reconciliation of nat.
+	NatReadyCondition clusterv1.ConditionType = "NatReady"
+	// NatReconciliationFailedReason used to report failures while reconciling subnets.
+	NatReconciliationFailedReason = "NatReconciliationFailed"
+)
+
+const (
 	// Only applicable to managed clusters.
 	EIPReadyCondition clusterv1.ConditionType = "EIPReady"
 	EIPFailedReason                           = "EIPFailed"
@@ -84,6 +91,16 @@ type EIP struct {
 	ID string `json:"id,omitempty"`
 }
 
+type SecurityGroup struct {
+	ID string `json:"id,omitempty"`
+}
+
+type Nat struct {
+	GatewayID string `json:"gatewayId,omitempty"`
+	RuleID    string `json:"ruleId,omitempty"`
+	EIPID     string `json:"eipId,omitempty"`
+}
+
 // NetworkSpec encapsulates all things related to CCE network.
 type NetworkSpec struct {
 	// 网络模型，overlay_l2 - 容器隧道网络，vpc-router - VPC网络，eni - 云原生网络2.0
@@ -94,12 +111,17 @@ type NetworkSpec struct {
 
 	// Subnet configuration.
 	Subnet Subnet `json:"subnet,omitempty"`
+
+	SecurityGroup SecurityGroup `json:"securityGroup,omitempty"`
 }
 
 // NetworkStatus encapsulates CCE networking resources.
 type NetworkStatus struct {
 	// EIP configuration
-	EIP EIP `json:"eip,omitempty"`
+	EIP    EIP    `json:"eip,omitempty"`
+	VPC    VPC    `json:"vpc,omitempty"`
+	Subnet Subnet `json:"subnet,omitempty"`
+	Nat    Nat    `json:"nat,omitempty"`
 }
 
 // EndpointAccess specifies how control plane endpoints are accessible.

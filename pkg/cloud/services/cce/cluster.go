@@ -94,6 +94,8 @@ func (s *Service) reconcileCluster(ctx context.Context) error {
 	if err != nil {
 		return errors.Wrap(err, "failed to show cce clusters")
 	}
+
+	// set ControlPlaneEndpoint
 	if cluster.Status.Endpoints != nil {
 		for _, ep := range *cluster.Status.Endpoints {
 			if *ep.Type == "Internal" {
@@ -119,6 +121,11 @@ func (s *Service) reconcileCluster(ctx context.Context) error {
 				}
 			}
 		}
+	}
+
+	// set SecurityGroup
+	if cluster.Spec.HostNetwork != nil {
+		s.scope.ControlPlane.Spec.NetworkSpec.SecurityGroup.ID = pointer.StringDeref(cluster.Spec.HostNetwork.SecurityGroup, "")
 	}
 
 	if err := s.reconcileKubeconfig(ctx, cluster); err != nil {

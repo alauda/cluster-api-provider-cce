@@ -222,6 +222,12 @@ func (s *NodepoolService) createNodepool() (*ccemodel.NodePool, error) {
 			Enable: pointer.Bool(false),
 		},
 	}
+	if s.scope.ControlPlane.Spec.NetworkSpec.SecurityGroup.ID != "" {
+		securityGroups := []string{
+			s.scope.ControlPlane.Spec.NetworkSpec.SecurityGroup.ID,
+		}
+		specbody.CustomSecurityGroups = &securityGroups
+	}
 	request.Body = &ccemodel.NodePool{
 		Metadata:   metadatabody,
 		Spec:       specbody,

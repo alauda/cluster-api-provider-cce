@@ -36,6 +36,7 @@ func (s *Service) reconcileVPC() error {
 		return errors.Wrap(err, "failed to create new vpc")
 	}
 	s.scope.ControlPlane.Spec.NetworkSpec.VPC.ID = vpc.ID
+	s.scope.ControlPlane.Status.Network.VPC.ID = vpc.ID
 
 	return nil
 }
@@ -65,4 +66,15 @@ func (s *Service) createVPC() (*infrastructurev1beta1.VPC, error) {
 	s.scope.Debug("Created new VPC with cidr", "vpc-id", response.Vpc.Id, "cidr-block", response.Vpc.Cidr)
 
 	return &infrastructurev1beta1.VPC{ID: response.Vpc.Id}, nil
+}
+
+func (s *Service) deleteVPC(vpcid string) error {
+	request := &vpcmodel.DeleteVpcRequest{
+		VpcId: vpcid,
+	}
+	_, err := s.VPCClient.DeleteVpc(request)
+	if err != nil {
+		return errors.Wrap(err, "failed to delete vpc")
+	}
+	return nil
 }

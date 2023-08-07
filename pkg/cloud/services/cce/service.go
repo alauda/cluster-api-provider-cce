@@ -12,6 +12,8 @@ import (
 	cceregion "github.com/huaweicloud/huaweicloud-sdk-go-v3/services/cce/v3/region"
 	eip "github.com/huaweicloud/huaweicloud-sdk-go-v3/services/eip/v2"
 	eipregion "github.com/huaweicloud/huaweicloud-sdk-go-v3/services/eip/v2/region"
+	nat "github.com/huaweicloud/huaweicloud-sdk-go-v3/services/nat/v2"
+	natregion "github.com/huaweicloud/huaweicloud-sdk-go-v3/services/nat/v2/region"
 	vpc "github.com/huaweicloud/huaweicloud-sdk-go-v3/services/vpc/v2"
 	vpcregion "github.com/huaweicloud/huaweicloud-sdk-go-v3/services/vpc/v2/region"
 	"github.com/pkg/errors"
@@ -26,6 +28,7 @@ type Service struct {
 	CCEClient *cce.CceClient
 	EIPClient *eip.EipClient
 	VPCClient *vpc.VpcClient
+	NatClient *nat.NatClient
 }
 
 type ServiceOpts func(s *Service)
@@ -65,11 +68,18 @@ func NewService(controlPlaneScope *scope.ManagedControlPlaneScope, opts ...Servi
 			WithCredential(auth).
 			Build())
 
+	natClient := nat.NewNatClient(
+		nat.NatClientBuilder().
+			WithRegion(natregion.ValueOf(controlPlaneScope.Region())).
+			WithCredential(auth).
+			Build())
+
 	s := &Service{
 		scope:     controlPlaneScope,
 		CCEClient: cceClient,
 		EIPClient: eipClient,
 		VPCClient: vpcClient,
+		NatClient: natClient,
 	}
 
 	for _, opt := range opts {
