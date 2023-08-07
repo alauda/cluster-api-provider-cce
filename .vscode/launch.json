@@ -7,7 +7,7 @@
             "type": "go",
             "request": "launch",
             "mode": "auto",
-            "program": "${file}",
+            "program": "/Users/wangchao/work/go/src/github.com/alauda/cluster-api-provider-cce/cmd/main.go",
             "env": {},
             "args": []
         }

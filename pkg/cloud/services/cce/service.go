@@ -40,7 +40,7 @@ func NewService(controlPlaneScope *scope.ManagedControlPlaneScope, opts ...Servi
 		return nil, err
 	}
 
-	controlPlaneScope.Debug("secret", "accessKey", string(sec.Data["accessKey"]), "secretKey", string(sec.Data["secretKey"]))
+	controlPlaneScope.Debug("secret", "accessKey", string(sec.Data["accessKey"]), "secretKey", string(sec.Data["secretKey"]), "region", controlPlaneScope.ControlPlane.Spec.Region)
 
 	auth := basic.NewCredentialsBuilder().
 		WithAk(string(sec.Data["accessKey"])).
@@ -94,7 +94,7 @@ func NewNodepoolService(machinePoolScope *scope.ManagedMachinePoolScope) (*Nodep
 		return nil, err
 	}
 
-	machinePoolScope.Debug("secret", "accessKey", string(sec.Data["accessKey"]), "secretKey", string(sec.Data["secretKey"]))
+	machinePoolScope.Debug("secret", "accessKey", string(sec.Data["accessKey"]), "secretKey", string(sec.Data["secretKey"]), "region", machinePoolScope.ControlPlane.Spec.Region)
 
 	auth := basic.NewCredentialsBuilder().
 		WithAk(string(sec.Data["accessKey"])).

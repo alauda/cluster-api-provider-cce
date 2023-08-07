@@ -2,6 +2,7 @@ package cce
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"time"
 
@@ -181,6 +182,10 @@ func (s *NodepoolService) createNodepool() (*ccemodel.NodePool, error) {
 			Volumetype: defaultVolumetype,
 		})
 	}
+	// 使用集群子网
+	if s.scope.ManagedMachinePool.Spec.Subnet.ID == "" {
+		s.scope.ManagedMachinePool.Spec.Subnet.ID = s.scope.ControlPlane.Spec.NetworkSpec.Subnet.ID
+	}
 
 	nodeTemplateSpec := &ccemodel.NodeSpec{
 		Flavor: pointer.StringDeref(s.scope.ManagedMachinePool.Spec.Flavor, "c6s.4xlarge.2"),
@@ -222,6 +227,9 @@ func (s *NodepoolService) createNodepool() (*ccemodel.NodePool, error) {
 		Spec:       specbody,
 		ApiVersion: "v3",
 		Kind:       "NodePool",
+	}
+	if j, err := json.Marshal(request); err == nil {
+		s.scope.Logger.Debug("node request", "request", string(j))
 	}
 	response, err := s.CCEClient.CreateNodePool(request)
 	if err != nil {
