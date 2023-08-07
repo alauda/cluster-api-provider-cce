@@ -127,5 +127,8 @@ func (s *ManagedControlPlaneScope) Project() string {
 	if s.ControlPlane.Spec.Project == nil {
 		return "0"
 	}
+	if s.ControlPlane.Spec.Project != nil && *s.ControlPlane.Spec.Project == "default" {
+		return "0"
+	}
 	return *s.ControlPlane.Spec.Project
 }
