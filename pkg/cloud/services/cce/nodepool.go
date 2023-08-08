@@ -289,7 +289,7 @@ func (s *NodepoolService) setStatus(np *ccemodel.NodePool) error {
 			if id, ok := node.Metadata.Annotations["kubernetes.io/node-pool.id"]; !ok || id != machinePoolID {
 				continue
 			}
-			providerIDList = append(providerIDList, fmt.Sprintf("cce:////%s/%s", node.Spec.Az, *node.Metadata.Uid))
+			providerIDList = append(providerIDList, pointer.StringDeref(node.Metadata.Uid, ""))
 		}
 		managedPool.Spec.ProviderIDList = providerIDList
 		managedPool.Status.Replicas = *np.Status.CurrentNode

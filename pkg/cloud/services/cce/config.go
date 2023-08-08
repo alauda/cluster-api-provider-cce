@@ -154,6 +154,7 @@ func (s *Service) generateClientData() (server string, caData []byte, certData [
 				err = fmt.Errorf("decoding cluster client cert: %w", err)
 				return
 			}
+			server = *c.Cluster.Server
 		}
 	}
 

@@ -43,31 +43,36 @@ func (s *Service) DeleteNetwork() (err error) {
 
 	if s.scope.ControlPlane.Status.Network.Nat.RuleID != "" && s.scope.ControlPlane.Status.Network.Nat.GatewayID != "" {
 		if err := s.deleteNatRule(s.scope.ControlPlane.Status.Network.Nat.GatewayID, s.scope.ControlPlane.Status.Network.Nat.RuleID); err != nil {
-			s.scope.Error(err, "Reconcile network delete nat rule failed")
+			s.scope.Error(err, "failed to delete network nat rule")
 		}
+
+	}
+	if s.scope.ControlPlane.Status.Network.Nat.GatewayID != "" {
 		if err := s.deleteNatGateway(s.scope.ControlPlane.Status.Network.Nat.GatewayID); err != nil {
-			s.scope.Error(err, "Reconcile network delete nat gateway failed")
+			s.scope.Error(err, "failed to delete network nat gateway")
 		}
+	}
+	if s.scope.ControlPlane.Status.Network.Nat.EIPID != "" {
 		if err := s.deleteEIP(s.scope.ControlPlane.Status.Network.Nat.EIPID); err != nil {
-			s.scope.Error(err, "Reconcile network delete nat eip failed")
+			s.scope.Error(err, "failed to delete network nat eip")
 		}
 	}
 
 	if s.scope.ControlPlane.Status.Network.Subnet.ID != "" {
 		if err := s.deleteSubnet(s.scope.ControlPlane.Status.Network.VPC.ID, s.scope.ControlPlane.Status.Network.Subnet.ID); err != nil {
-			s.scope.Error(err, "Reconcile network delete subnet failed")
+			s.scope.Error(err, "failed to delete network subnet")
 		}
 	}
 
 	if s.scope.ControlPlane.Status.Network.VPC.ID != "" {
 		if err := s.deleteVPC(s.scope.ControlPlane.Status.Network.VPC.ID); err != nil {
-			s.scope.Error(err, "Reconcile network delete vpc failed")
+			s.scope.Error(err, "failed to delete network vpc")
 		}
 	}
 
 	if s.scope.ControlPlane.Status.Network.EIP.ID != "" {
 		if err := s.deleteEIP(s.scope.ControlPlane.Status.Network.EIP.ID); err != nil {
-			s.scope.Error(err, "Reconcile network delete eip failed")
+			s.scope.Error(err, "failed to delete network eip")
 		}
 	}
 
