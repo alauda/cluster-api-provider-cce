@@ -1,6 +1,9 @@
 package cce
 
 import (
+	"fmt"
+	"time"
+
 	"github.com/huaweicloud/huaweicloud-sdk-go-v3/services/nat/v2/model"
 	"github.com/pkg/errors"
 	"k8s.io/utils/pointer"
@@ -21,6 +24,8 @@ func (s *Service) reconcileNAT() (err error) {
 			return errors.Wrap(err, "failed to create new nat")
 		}
 	}
+	s.scope.ControlPlane.Status.Network.Nat.GatewayID = gatwayId
+	time.Sleep(3 * time.Second)
 
 	eipid := s.scope.ControlPlane.Status.Network.Nat.EIPID
 	if eipid == "" {
@@ -30,6 +35,8 @@ func (s *Service) reconcileNAT() (err error) {
 		}
 		eipid = eip.ID
 	}
+	s.scope.ControlPlane.Status.Network.Nat.EIPID = eipid
+	time.Sleep(3 * time.Second)
 
 	ruleId := s.scope.ControlPlane.Status.Network.Nat.RuleID
 	if ruleId == "" {
@@ -38,9 +45,6 @@ func (s *Service) reconcileNAT() (err error) {
 			return errors.Wrap(err, "failed to create new nat")
 		}
 	}
-
-	s.scope.ControlPlane.Status.Network.Nat.EIPID = eipid
-	s.scope.ControlPlane.Status.Network.Nat.GatewayID = gatwayId
 	s.scope.ControlPlane.Status.Network.Nat.RuleID = ruleId
 
 	return nil
@@ -50,7 +54,7 @@ func (s *Service) createNatGateWay() (string, error) {
 	request := &model.CreateNatGatewayRequest{}
 	request.Body = &model.CreateNatGatewayRequestBody{
 		NatGateway: &model.CreateNatGatewayOption{
-			Name:                strings.GenerateName("nat-"),
+			Name:                strings.GenerateName(fmt.Sprintf("nat-%s-", s.scope.Name())),
 			EnterpriseProjectId: pointer.String(s.scope.Project()),
 			Spec:                model.GetCreateNatGatewayOptionSpecEnum().E_1,
 			InternalNetworkId:   s.scope.ControlPlane.Status.Network.Subnet.ID,
