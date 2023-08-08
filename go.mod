@@ -4,7 +4,7 @@ go 1.19
 
 require (
 	github.com/go-logr/logr v1.2.3
-	github.com/huaweicloud/huaweicloud-sdk-go-v3 v0.1.47
+	github.com/huaweicloud/huaweicloud-sdk-go-v3 v0.1.52
 	github.com/onsi/ginkgo/v2 v2.9.2
 	github.com/onsi/gomega v1.27.5
 	github.com/pkg/errors v0.9.1
