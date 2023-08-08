@@ -25,6 +25,6 @@ global:
   images:
     cluster_api_provider_cce:
       repository: ait/cluster-api-provider-cce
-      tag: v3.14.0-beta.59.g20371b7f
+      tag: v3.14.0-beta.60.g88a73930
       code: gitlab-ce.alauda.cn/ait/cluster-api-provider-cce
       support_arm: true
