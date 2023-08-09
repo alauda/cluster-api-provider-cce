@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"reflect"
 	"time"
 
 	"github.com/huaweicloud/huaweicloud-sdk-go-v3/core/sdkerr"
@@ -104,6 +105,20 @@ func (s *NodepoolService) reconcileNodepool(ctx context.Context) error {
 		if err != nil {
 			return errors.Wrap(err, "failed to show nodepool")
 		}
+
+		// update nodepool
+		update, err := s.updateNodepool(np)
+		if err != nil {
+			return errors.Wrap(err, "failed to update nodepool")
+		}
+
+		time.Sleep(2 * time.Second)
+		if update {
+			np, err = s.showNodepool()
+			if err != nil {
+				return errors.Wrap(err, "failed to show nodepool")
+			}
+		}
 	}
 
 	if np == nil {
@@ -162,19 +177,19 @@ func (s *NodepoolService) createNodepool() (*ccemodel.NodePool, error) {
 
 	nameRuntime := toRuntimeName(pointer.StringDeref(s.scope.ManagedMachinePool.Spec.Runtime, defaultRuntime))
 
-	// var listTaintsNodeTemplate []ccemodel.Taint
-	// if s.scope.ManagedMachinePool.Spec.Taints != nil {
-	// 	taints := *s.scope.ManagedMachinePool.Spec.Taints
-	// 	for _, t := range taints {
-	// 		listTaintsNodeTemplate = append(listTaintsNodeTemplate, ccemodel.Taint{
-	// 			Key:    t.Key,
-	// 			Value:  t.Value,
-	// 			Effect: toTaintEffect(t.Effect),
-	// 		})
-	// 	}
-	// }
+	var listTaintsNodeTemplate []ccemodel.Taint
+	if s.scope.ManagedMachinePool.Spec.Taints != nil {
+		taints := *s.scope.ManagedMachinePool.Spec.Taints
+		for _, t := range taints {
+			listTaintsNodeTemplate = append(listTaintsNodeTemplate, ccemodel.Taint{
+				Key:    t.Key,
+				Value:  t.Value,
+				Effect: toTaintEffect(t.Effect),
+			})
+		}
+	}
 
-	// listK8sTagsNodeTemplate := s.scope.ManagedMachinePool.Spec.Labels
+	listK8sTagsNodeTemplate := s.scope.ManagedMachinePool.Spec.Labels
 	var listDataVolumesNodeTemplate []ccemodel.Volume
 	for _, d := range s.scope.ManagedMachinePool.Spec.DataVolumes {
 		listDataVolumesNodeTemplate = append(listDataVolumesNodeTemplate, ccemodel.Volume{
@@ -204,8 +219,8 @@ func (s *NodepoolService) createNodepool() (*ccemodel.NodePool, error) {
 				SubnetId: pointer.String(s.scope.ManagedMachinePool.Spec.Subnet.ID),
 			},
 		},
-		// Taints:      &listTaintsNodeTemplate,
-		// K8sTags:     listK8sTagsNodeTemplate,
+		Taints:  &listTaintsNodeTemplate,
+		K8sTags: listK8sTagsNodeTemplate,
 		Runtime: &ccemodel.Runtime{
 			Name: &nameRuntime,
 		},
@@ -250,6 +265,77 @@ func (s *NodepoolService) createNodepool() (*ccemodel.NodePool, error) {
 		Spec:       response.Spec,
 		Status:     response.Status,
 	}, nil
+}
+
+func (s *NodepoolService) updateNodepool(found *ccemodel.NodePool) (bool, error) {
+	s.scope.Debug("Reconciling update CCE nodepool")
+	request := &ccemodel.UpdateNodePoolRequest{}
+	request.ClusterId = s.scope.ControlPlane.InfraClusterID()
+	request.NodepoolId = s.scope.InfraMachinePoolID()
+
+	update := false
+
+	// label
+	listK8sTagsNodeTemplate := s.scope.ManagedMachinePool.Spec.Labels
+	if !reflect.DeepEqual(listK8sTagsNodeTemplate, found.Spec.NodeTemplate.K8sTags) {
+		update = true
+	}
+
+	// taint
+	var listTaintsNodeTemplate []ccemodel.Taint
+	if s.scope.ManagedMachinePool.Spec.Taints != nil {
+		taints := *s.scope.ManagedMachinePool.Spec.Taints
+		for _, t := range taints {
+			listTaintsNodeTemplate = append(listTaintsNodeTemplate, ccemodel.Taint{
+				Key:    t.Key,
+				Value:  t.Value,
+				Effect: toTaintEffect(t.Effect),
+			})
+		}
+		// diff
+		if found.Spec.NodeTemplate.Taints != nil {
+			foundTaints := *found.Spec.NodeTemplate.Taints
+			if !reflect.DeepEqual(foundTaints, listTaintsNodeTemplate) {
+				update = true
+			}
+		}
+	}
+	if s.scope.ManagedMachinePool.Spec.Taints == nil && found.Spec.NodeTemplate.Taints != nil {
+		update = true
+	}
+
+	// node count
+	if found.Spec.InitialNodeCount != s.scope.ManagedMachinePool.Spec.Replicas {
+		update = true
+	}
+	enableAutoscaling := false
+	autoscalingSpec := &ccemodel.NodePoolNodeAutoscaling{
+		Enable: &enableAutoscaling,
+	}
+	metadatabody := &ccemodel.NodePoolMetadataUpdate{
+		Name: s.scope.ManagedMachinePool.Name,
+	}
+	nodeTemplateSpec := &ccemodel.NodeSpecUpdate{
+		Taints:  listTaintsNodeTemplate,
+		K8sTags: listK8sTagsNodeTemplate,
+	}
+	specbody := &ccemodel.NodePoolSpecUpdate{
+		NodeTemplate:     nodeTemplateSpec,
+		InitialNodeCount: pointer.Int32Deref(s.scope.ManagedMachinePool.Spec.Replicas, 1),
+		Autoscaling:      autoscalingSpec,
+	}
+	request.Body = &ccemodel.NodePoolUpdate{
+		Spec:     specbody,
+		Metadata: metadatabody,
+	}
+
+	if update {
+		_, err := s.CCEClient.UpdateNodePool(request)
+		if err != nil {
+			return false, err
+		}
+	}
+	return update, nil
 }
 
 func (s *NodepoolService) setStatus(np *ccemodel.NodePool) error {

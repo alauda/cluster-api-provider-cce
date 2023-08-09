@@ -144,7 +144,8 @@ func (r *CCEManagedControlPlaneReconciler) SetupWithManager(ctx context.Context,
 
 	if err = c.Watch(
 		&source.Kind{Type: &clusterv1.Cluster{}},
-		handler.EnqueueRequestsFromMapFunc(util.ClusterToInfrastructureMapFunc(ctx, cceManagedControlPlane.GroupVersionKind(), mgr.GetClient(), &infrastructurev1beta1.CCEManagedControlPlane{})),
+		handler.EnqueueRequestsFromMapFunc(
+			util.ClusterToInfrastructureMapFunc(ctx, cceManagedControlPlane.GroupVersionKind(), mgr.GetClient(), &infrastructurev1beta1.CCEManagedControlPlane{})),
 		predicates.ClusterUnpausedAndInfrastructureReady(log.GetLogger()),
 	); err != nil {
 		return fmt.Errorf("failed adding a watch for ready clusters: %w", err)
