@@ -1,7 +1,7 @@
 apiVersion: v2
 name: cluster-api-provider-cce
-version: v3.14.0-beta.120.gb06f6205
+version: v3.14.0-beta.121.g88a577b6
 description: cluster api provider cce
 annotations:
   branch: master
-  commit: b06f620593be5a2addc414c27324ff1f956f09ab
+  commit: 88a577b60d42f4c611d946b888790cdbfcdbc549
