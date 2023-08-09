@@ -27,17 +27,30 @@ func (s *Service) reconcileEIP(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("failed to show cluster endpoint: %w", err)
 	}
-	if epRes.Status.PublicEndpoint != nil && *epRes.Status.PublicEndpoint != "" {
-		return nil
-	}
 
-	// create EIP
-	eip, err := s.createEIP()
-	if err != nil {
-		return errors.Wrap(err, "failed to create new vpc")
+	actionSpec := ccemodel.GetMasterEipRequestSpecActionEnum().BIND
+	if pointer.BoolDeref(s.scope.ControlPlane.Spec.EndpointAccess.Public, true) {
+		if epRes.Status.PublicEndpoint != nil && *epRes.Status.PublicEndpoint != "" {
+			return nil
+		}
+
+		// create EIP
+		eip, err := s.createEIP()
+		if err != nil {
+			return errors.Wrap(err, "failed to create new vpc")
+		}
+		// set status id
+		s.scope.ControlPlane.Status.Network.EIP.ID = eip.ID
+	} else {
+
+		if epRes.Status.PublicEndpoint == nil ||
+			(epRes.Status.PublicEndpoint != nil && *epRes.Status.PublicEndpoint == "") ||
+			s.scope.ControlPlane.Status.Network.EIP.ID == "" {
+			return nil
+		}
+
+		actionSpec = ccemodel.GetMasterEipRequestSpecActionEnum().UNBIND
 	}
-	// set status id
-	s.scope.ControlPlane.Status.Network.EIP.ID = eip.ID
 
 	// bind EIP
 	s.scope.Debug("ready to binding EIP", "cluster", klog.KRef("", s.scope.InfraClusterName()))
@@ -45,9 +58,8 @@ func (s *Service) reconcileEIP(ctx context.Context) error {
 		ClusterId: s.scope.InfraClusterID(),
 	}
 	specSpec := &ccemodel.MasterEipRequestSpecSpec{
-		Id: pointer.String(eip.ID),
+		Id: pointer.String(s.scope.ControlPlane.Status.Network.EIP.ID),
 	}
-	actionSpec := ccemodel.GetMasterEipRequestSpecActionEnum().BIND
 	specbody := &ccemodel.MasterEipRequestSpec{
 		Action: &actionSpec,
 		Spec:   specSpec,
@@ -59,6 +71,17 @@ func (s *Service) reconcileEIP(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("failed to bind EIP: %w", err)
 	}
+
+	// delete eip
+	if !pointer.BoolDeref(s.scope.ControlPlane.Spec.EndpointAccess.Public, true) {
+		if s.scope.ControlPlane.Status.Network.EIP.ID != "" {
+			if err := s.deleteEIP(s.scope.ControlPlane.Status.Network.EIP.ID); err != nil {
+				s.scope.Error(err, "failed to delete network eip")
+			}
+			s.scope.ControlPlane.Status.Network.EIP.ID = ""
+		}
+	}
+
 	return nil
 }
 

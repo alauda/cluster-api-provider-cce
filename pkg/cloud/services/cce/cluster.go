@@ -8,6 +8,7 @@ import (
 	"github.com/huaweicloud/huaweicloud-sdk-go-v3/core/sdkerr"
 	ccemodel "github.com/huaweicloud/huaweicloud-sdk-go-v3/services/cce/v3/model"
 	"github.com/pkg/errors"
+	"github.com/thoas/go-funk"
 	"k8s.io/klog/v2"
 	"k8s.io/utils/pointer"
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
@@ -58,8 +59,21 @@ func (s *Service) reconcileCluster(ctx context.Context) error {
 		}
 		clusterStatus = created.Status
 	} else {
-		clusterStatus = cluster.Status
 		s.scope.Debug("Found owned CEE cluster", "cluster", klog.KRef("", s.scope.InfraClusterName()))
+		s.scope.Debug("Found owned CEE cluster", "cluster", *cluster.Spec)
+
+		updated, err := s.containerNetwork(cluster)
+		if err != nil {
+			return errors.Wrap(err, "failed to update cce containerNetwork")
+		}
+		if updated {
+			cluster, err = s.showCCECluster(s.scope.InfraClusterID())
+			if err != nil {
+				return errors.Wrap(err, "failed to show cce clusters")
+			}
+		}
+
+		clusterStatus = cluster.Status
 	}
 
 	if err := s.setStatus(clusterStatus); err != nil {
@@ -83,11 +97,9 @@ func (s *Service) reconcileCluster(ctx context.Context) error {
 
 	s.scope.Debug("EKS Control Plane active", "endpoint", *cluster.Status.Endpoints)
 
-	// create EIP
-	if pointer.BoolDeref(s.scope.ControlPlane.Spec.EndpointAccess.Public, true) {
-		if err := s.reconcileEIP(ctx); err != nil {
-			return errors.Wrap(err, "failed reconciling EIP")
-		}
+	// bind EIP
+	if err := s.reconcileEIP(ctx); err != nil {
+		return errors.Wrap(err, "failed reconciling EIP")
 	}
 
 	cluster, err = s.showCCECluster(s.scope.InfraClusterID())
@@ -372,4 +384,52 @@ func (s *Service) waitForClusterDeleted(infraClusterID string) error {
 		return err
 	}
 	return nil
+}
+
+func (s *Service) containerNetwork(cluster *ccemodel.ShowClusterResponse) (bool, error) {
+	s.scope.Debug("Reconciling containerNetwork")
+
+	existscount := 1
+	existscidrs := []string{}
+	if cluster.Spec.ContainerNetwork.Cidrs != nil {
+		cidrs := *cluster.Spec.ContainerNetwork.Cidrs
+		existscount = len(cidrs)
+
+		for _, c := range cidrs {
+			existscidrs = append(existscidrs, c.Cidr)
+		}
+	}
+	if !(len(s.scope.Cluster.Spec.ClusterNetwork.Pods.CIDRBlocks) > existscount) {
+		return false, nil
+	}
+
+	request := &ccemodel.UpdateClusterRequest{}
+	request.ClusterId = s.scope.InfraClusterID()
+
+	var listCidrsContainerNetwork []ccemodel.ContainerCidr
+	if s.scope.Cluster.Spec.ClusterNetwork.Pods != nil {
+		for _, cidr := range s.scope.Cluster.Spec.ClusterNetwork.Pods.CIDRBlocks {
+			if funk.ContainsString(existscidrs, cidr) {
+				continue
+			}
+			listCidrsContainerNetwork = append(listCidrsContainerNetwork, ccemodel.ContainerCidr{
+				Cidr: cidr,
+			})
+		}
+	}
+
+	containerNetworkSpec := &ccemodel.ContainerNetworkUpdate{
+		Cidrs: &listCidrsContainerNetwork,
+	}
+	specbody := &ccemodel.ClusterInformationSpec{
+		ContainerNetwork: containerNetworkSpec,
+	}
+	request.Body = &ccemodel.ClusterInformation{
+		Spec: specbody,
+	}
+	_, err := s.CCEClient.UpdateCluster(request)
+	if err != nil {
+		return false, errors.Wrapf(err, "failed to update containerNetwork for cce cluster %s", s.scope.InfraClusterName())
+	}
+	return true, nil
 }
