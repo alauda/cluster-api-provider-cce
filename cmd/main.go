@@ -24,32 +24,26 @@ import (
 	"time"
 
 	"github.com/spf13/pflag"
+	"k8s.io/apimachinery/pkg/runtime"
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
+	_ "k8s.io/client-go/plugin/pkg/client/auth"
 	"k8s.io/client-go/tools/leaderelection/resourcelock"
 	cgrecord "k8s.io/client-go/tools/record"
 	"k8s.io/component-base/logs"
 	v1 "k8s.io/component-base/logs/api/v1"
 	_ "k8s.io/component-base/logs/json/register"
 	"k8s.io/klog/v2"
-	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.
-	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.
-	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
-	// to ensure that exec-entrypoint and run can make use of them.
-	_ "k8s.io/client-go/plugin/pkg/client/auth"
 	"k8s.io/utils/pointer"
-	"sigs.k8s.io/controller-runtime/pkg/controller"
-
-	"k8s.io/apimachinery/pkg/runtime"
-	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
-	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
+	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
+	expclusterv1 "sigs.k8s.io/cluster-api/exp/api/v1beta1"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 
 	infrastructurev1beta1 "github.com/alauda/cluster-api-provider-cce/api/v1beta1"
 	ccecontroller "github.com/alauda/cluster-api-provider-cce/internal/controller"
 	"github.com/alauda/cluster-api-provider-cce/pkg/logger"
-	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
-	expclusterv1 "sigs.k8s.io/cluster-api/exp/api/v1beta1"
-	//+kubebuilder:scaffold:imports
 )
 
 var (

@@ -95,7 +95,7 @@ func (s *Service) reconcileCluster(ctx context.Context) error {
 		return nil
 	}
 
-	s.scope.Debug("EKS Control Plane active", "endpoint", *cluster.Status.Endpoints)
+	s.scope.Debug("CCE Control Plane active", "endpoint", *cluster.Status.Endpoints)
 
 	// bind EIP
 	if err := s.reconcileEIP(ctx); err != nil {
@@ -389,27 +389,20 @@ func (s *Service) waitForClusterDeleted(infraClusterID string) error {
 func (s *Service) containerNetwork(cluster *ccemodel.ShowClusterResponse) (bool, error) {
 	s.scope.Debug("Reconciling containerNetwork")
 
-	existscount := 1
-	existscidrs := []string{}
+	foundcidrs := []string{}
 	if cluster.Spec.ContainerNetwork.Cidrs != nil {
 		cidrs := *cluster.Spec.ContainerNetwork.Cidrs
-		existscount = len(cidrs)
-
 		for _, c := range cidrs {
-			existscidrs = append(existscidrs, c.Cidr)
+			foundcidrs = append(foundcidrs, c.Cidr)
 		}
+	} else {
+		foundcidrs = append(foundcidrs, pointer.StringDeref(cluster.Spec.ContainerNetwork.Cidr, ""))
 	}
-	if !(len(s.scope.Cluster.Spec.ClusterNetwork.Pods.CIDRBlocks) > existscount) {
-		return false, nil
-	}
-
-	request := &ccemodel.UpdateClusterRequest{}
-	request.ClusterId = s.scope.InfraClusterID()
 
 	var listCidrsContainerNetwork []ccemodel.ContainerCidr
 	if s.scope.Cluster.Spec.ClusterNetwork.Pods != nil {
 		for _, cidr := range s.scope.Cluster.Spec.ClusterNetwork.Pods.CIDRBlocks {
-			if funk.ContainsString(existscidrs, cidr) {
+			if funk.ContainsString(foundcidrs, cidr) {
 				continue
 			}
 			listCidrsContainerNetwork = append(listCidrsContainerNetwork, ccemodel.ContainerCidr{
@@ -417,6 +410,10 @@ func (s *Service) containerNetwork(cluster *ccemodel.ShowClusterResponse) (bool,
 			})
 		}
 	}
+	if len(listCidrsContainerNetwork) == 0 {
+		return false, nil
+	}
+	s.scope.Debug("update containerNetwork", "listCidrsContainerNetwork", listCidrsContainerNetwork)
 
 	containerNetworkSpec := &ccemodel.ContainerNetworkUpdate{
 		Cidrs: &listCidrsContainerNetwork,
@@ -424,6 +421,8 @@ func (s *Service) containerNetwork(cluster *ccemodel.ShowClusterResponse) (bool,
 	specbody := &ccemodel.ClusterInformationSpec{
 		ContainerNetwork: containerNetworkSpec,
 	}
+	request := &ccemodel.UpdateClusterRequest{}
+	request.ClusterId = s.scope.InfraClusterID()
 	request.Body = &ccemodel.ClusterInformation{
 		Spec: specbody,
 	}

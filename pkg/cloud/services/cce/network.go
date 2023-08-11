@@ -1,6 +1,7 @@
 package cce
 
 import (
+	"k8s.io/client-go/util/retry"
 	"time"
 
 	"k8s.io/klog/v2"
@@ -44,6 +45,12 @@ func (s *Service) ReconcileNetwork() (err error) {
 // DeleteNetwork deletes the network of the given cluster.
 func (s *Service) DeleteNetwork() (err error) {
 	s.scope.Debug("Deleting network")
+
+	retry.OnError(retry.DefaultBackoff, func(err error) bool {
+		return true
+	}, func() error {
+		return nil
+	})
 
 	if s.scope.ControlPlane.Status.Network.Nat.RuleID != "" && s.scope.ControlPlane.Status.Network.Nat.GatewayID != "" {
 		if err := s.deleteNatRule(s.scope.ControlPlane.Status.Network.Nat.GatewayID, s.scope.ControlPlane.Status.Network.Nat.RuleID); err != nil {
