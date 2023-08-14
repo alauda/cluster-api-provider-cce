@@ -19,6 +19,7 @@ package controller
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/pkg/errors"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -46,6 +47,7 @@ type CCEManagedClusterReconciler struct {
 	client.Client
 	Scheme           *runtime.Scheme
 	WatchFilterValue string
+	WaitInfraPeriod  time.Duration
 }
 
 //+kubebuilder:rbac:groups=core,resources=events,verbs=get;list;watch;create;patch

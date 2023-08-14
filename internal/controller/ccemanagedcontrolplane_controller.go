@@ -222,15 +222,18 @@ func (r *CCEManagedControlPlaneReconciler) reconcileDelete(ctx context.Context, 
 	// service init
 	ccesvc, err := cce.NewService(managedScope)
 	if err != nil {
+		time.Sleep(5 * time.Second)
 		return reconcile.Result{}, fmt.Errorf("error deleting CCE cluster for CCE control plane %s/%s: %w", controlPlane.Namespace, controlPlane.Name, err)
 	}
 
 	if err := ccesvc.DeleteControlPlane(); err != nil {
+		time.Sleep(r.WaitInfraPeriod)
 		log.Error(err, "error deleting CCE cluster for CCE control plane", "namespace", controlPlane.Namespace, "name", controlPlane.Name)
 		return reconcile.Result{}, err
 	}
 
 	if err := ccesvc.DeleteNetwork(); err != nil {
+		time.Sleep(r.WaitInfraPeriod)
 		log.Error(err, "error deleting network for CCEManagedControlPlane", "namespace", controlPlane.Namespace, "name", controlPlane.Name)
 		return reconcile.Result{}, err
 	}
@@ -262,14 +265,17 @@ func (r *CCEManagedControlPlaneReconciler) reconcileNormal(ctx context.Context, 
 	// service init
 	ccesvc, err := cce.NewService(managedScope)
 	if err != nil {
+		time.Sleep(5 * time.Second)
 		return reconcile.Result{}, fmt.Errorf("failed to init cce service for CCEManagedControlPlane %s/%s: %w", cceManagedControlPlane.Namespace, cceManagedControlPlane.Name, err)
 	}
 
 	if err := ccesvc.ReconcileNetwork(); err != nil {
+		time.Sleep(r.WaitInfraPeriod)
 		return reconcile.Result{}, fmt.Errorf("failed to reconcile network for CCEManagedControlPlane %s/%s: %w", cceManagedControlPlane.Namespace, cceManagedControlPlane.Name, err)
 	}
 
 	if err := ccesvc.ReconcileControlPlane(ctx); err != nil {
+		time.Sleep(r.WaitInfraPeriod)
 		return reconcile.Result{}, fmt.Errorf("failed to reconcile control plane for CCEManagedControlPlane %s/%s: %w", cceManagedControlPlane.Namespace, cceManagedControlPlane.Name, err)
 	}
 

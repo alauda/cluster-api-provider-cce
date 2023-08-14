@@ -19,6 +19,7 @@ package controller
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/pkg/errors"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -52,6 +53,7 @@ type CCEManagedMachinePoolReconciler struct {
 	client.Client
 	Scheme           *runtime.Scheme
 	WatchFilterValue string
+	WaitInfraPeriod  time.Duration
 }
 
 //+kubebuilder:rbac:groups=infrastructure.cluster.x-k8s.io,resources=ccemanagedmachinepools,verbs=get;list;watch;create;update;patch;delete
@@ -181,10 +183,12 @@ func (r *CCEManagedMachinePoolReconciler) reconcileDelete(_ context.Context, mac
 
 	ccesvc, err := cce.NewNodepoolService(machinePoolScope)
 	if err != nil {
+		time.Sleep(5 * time.Second)
 		return reconcile.Result{}, fmt.Errorf("failed to init cce service for CCEManagedMachinePool %s/%s: %w", machinePoolScope.Namespace(), machinePoolScope.Name(), err)
 	}
 
 	if err := ccesvc.ReconcilePoolDelete(); err != nil {
+		time.Sleep(r.WaitInfraPeriod)
 		return reconcile.Result{}, errors.Wrapf(err, "failed to reconcile machine pool deletion for CCEManagedMachinePool %s/%s", machinePoolScope.ManagedMachinePool.Namespace, machinePoolScope.ManagedMachinePool.Name)
 	}
 
@@ -204,10 +208,12 @@ func (r *CCEManagedMachinePoolReconciler) reconcileNormal(ctx context.Context, m
 	// service init
 	ccesvc, err := cce.NewNodepoolService(machinePoolScope)
 	if err != nil {
+		time.Sleep(5 * time.Second)
 		return reconcile.Result{}, fmt.Errorf("failed to init cce service for CCEManagedMachinePool %s/%s: %w", machinePoolScope.Namespace(), machinePoolScope.Name(), err)
 	}
 
 	if err := ccesvc.ReconcilePool(ctx); err != nil {
+		time.Sleep(r.WaitInfraPeriod)
 		return reconcile.Result{}, errors.Wrapf(err, "failed to reconcile machine pool for CCEManagedMachinePool %s/%s", machinePoolScope.ManagedMachinePool.Namespace, machinePoolScope.ManagedMachinePool.Name)
 	}
 
