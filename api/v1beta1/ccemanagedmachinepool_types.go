@@ -66,6 +66,9 @@ type Volume struct {
 
 // CCEManagedMachinePoolSpec defines the desired state of CCEManagedMachinePool
 type CCEManagedMachinePoolSpec struct {
+	// 操作系统
+	Os *string `json:"os,omitempty"`
+
 	// 节点池节点个数
 	Replicas *int32 `json:"replicas,omitempty"`
 

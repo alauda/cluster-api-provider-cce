@@ -65,6 +65,9 @@ spec:
                   type: string
                 description: Labels specifies labels for the Kubernetes node objects
                 type: object
+              os:
+                description: 操作系统
+                type: string
               providerIDList:
                 description: ProviderIDList are the provider IDs of instances in the
                   autoscaling group corresponding to the nodegroup represented by

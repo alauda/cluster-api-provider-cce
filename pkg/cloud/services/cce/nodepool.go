@@ -214,7 +214,7 @@ func (s *NodepoolService) createNodepool() (*ccemodel.NodePool, error) {
 	nodeTemplateSpec := &ccemodel.NodeSpec{
 		Flavor: pointer.StringDeref(s.scope.ManagedMachinePool.Spec.Flavor, "c6s.4xlarge.2"),
 		Az:     "random",
-		Os:     pointer.String(defaultOSNode),
+		Os:     pointer.String(pointer.StringDeref(s.scope.ManagedMachinePool.Spec.Os, defaultOSNode)),
 		Login: &ccemodel.Login{
 			SshKey: s.scope.ManagedMachinePool.Spec.SSHKeyName,
 		},
