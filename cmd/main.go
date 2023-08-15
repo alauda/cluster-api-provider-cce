@@ -199,6 +199,7 @@ func main() {
 		Client:           mgr.GetClient(),
 		Scheme:           mgr.GetScheme(),
 		WatchFilterValue: watchFilterValue,
+		WaitInfraPeriod:  waitInfraPeriod,
 	}).SetupWithManager(ctx, mgr, controller.Options{MaxConcurrentReconciles: cceClusterConcurrency, RecoverPanic: pointer.Bool(true)}); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "CCEManagedCluster")
 		os.Exit(1)
@@ -209,6 +210,7 @@ func main() {
 		Client:           mgr.GetClient(),
 		Scheme:           mgr.GetScheme(),
 		WatchFilterValue: watchFilterValue,
+		WaitInfraPeriod:  waitInfraPeriod,
 	}).SetupWithManager(ctx, mgr, controller.Options{MaxConcurrentReconciles: cceClusterConcurrency, RecoverPanic: pointer.Bool(true)}); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "CCEManagedMachinePool")
 		os.Exit(1)
