@@ -138,3 +138,11 @@ func (s *ManagedMachinePoolScope) NodepoolReadyFalse(reason string, err string) 
 	}
 	return nil
 }
+
+// PatchCAPIMachinePoolObject persists the capi machinepool configuration and status.
+func (s *ManagedMachinePoolScope) PatchCAPIMachinePoolObject(ctx context.Context) error {
+	return s.capiMachinePoolPatchHelper.Patch(
+		ctx,
+		s.MachinePool,
+	)
+}

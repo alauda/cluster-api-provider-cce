@@ -141,6 +141,15 @@ func (s *NodepoolService) reconcileNodepool(ctx context.Context) error {
 		break
 	}
 
+	// set machinepool replicas to ccemanaged
+	if *s.scope.MachinePool.Spec.Replicas != *np.Spec.InitialNodeCount {
+		s.scope.Info("Setting MachinePool replicas to InitialNodeCount", "local", *s.scope.MachinePool.Spec.Replicas, "external", *np.Spec.InitialNodeCount)
+		s.scope.MachinePool.Spec.Replicas = np.Spec.InitialNodeCount
+		if err := s.scope.PatchCAPIMachinePoolObject(ctx); err != nil {
+			return err
+		}
+	}
+
 	if err != nil {
 		return errors.Wrap(err, "failed to wait for nodepool to be active")
 	}
@@ -277,8 +286,18 @@ func (s *NodepoolService) updateNodepool(found *ccemodel.NodePool) (bool, error)
 
 	// label
 	listK8sTagsNodeTemplate := s.scope.ManagedMachinePool.Spec.Labels
+	if len(found.Spec.NodeTemplate.K8sTags) > 0 {
+		delete(found.Spec.NodeTemplate.K8sTags, "cce.cloud.com/cce-nodepool")
+	}
 	if !reflect.DeepEqual(listK8sTagsNodeTemplate, found.Spec.NodeTemplate.K8sTags) {
 		update = true
+
+		// Merge local & external cce config
+		for k, v := range found.Spec.NodeTemplate.K8sTags {
+			if _, ok := listK8sTagsNodeTemplate[k]; !ok {
+				listK8sTagsNodeTemplate[k] = v
+			}
+		}
 	}
 
 	// taint
@@ -297,6 +316,13 @@ func (s *NodepoolService) updateNodepool(found *ccemodel.NodePool) (bool, error)
 			foundTaints := *found.Spec.NodeTemplate.Taints
 			if !reflect.DeepEqual(foundTaints, listTaintsNodeTemplate) {
 				update = true
+
+				// Merge local & external cce config
+				for _, ft := range foundTaints {
+					if findTaint(listTaintsNodeTemplate, ft) {
+						listTaintsNodeTemplate = append(listTaintsNodeTemplate, ft)
+					}
+				}
 			}
 		}
 	}
@@ -304,14 +330,33 @@ func (s *NodepoolService) updateNodepool(found *ccemodel.NodePool) (bool, error)
 		update = true
 	}
 
-	// node count
-	if found.Spec.InitialNodeCount != s.scope.ManagedMachinePool.Spec.Replicas {
-		update = true
-	}
+	// autoscaling
 	enableAutoscaling := false
 	autoscalingSpec := &ccemodel.NodePoolNodeAutoscaling{
 		Enable: &enableAutoscaling,
 	}
+	if found.Spec.Autoscaling != nil && pointer.BoolDeref(found.Spec.Autoscaling.Enable, false) {
+		autoscalingSpec = found.Spec.Autoscaling
+	}
+
+	// node count
+	foundNodeCount := pointer.Int32Deref(found.Spec.InitialNodeCount, 0)
+	initialNodeCount := pointer.Int32Deref(s.scope.ManagedMachinePool.Spec.Replicas, 1)
+	if foundNodeCount != initialNodeCount {
+		update = true
+
+		if *autoscalingSpec.Enable {
+			if *s.scope.ManagedMachinePool.Spec.Replicas < *autoscalingSpec.MinNodeCount {
+				s.scope.ManagedMachinePool.Spec.Replicas = autoscalingSpec.MinNodeCount
+			}
+			if *s.scope.ManagedMachinePool.Spec.Replicas > *autoscalingSpec.MaxNodeCount {
+				s.scope.ManagedMachinePool.Spec.Replicas = autoscalingSpec.MaxNodeCount
+			}
+			// Merge local & external cce config
+			s.scope.ManagedMachinePool.Spec.Replicas = pointer.Int32(foundNodeCount)
+		}
+	}
+
 	metadatabody := &ccemodel.NodePoolMetadataUpdate{
 		Name: s.scope.ManagedMachinePool.Name,
 	}
@@ -453,4 +498,13 @@ func toRuntimeName(runtime string) ccemodel.RuntimeName {
 		return ccemodel.GetRuntimeNameEnum().DOCKER
 	}
 	return ccemodel.GetRuntimeNameEnum().CONTAINERD
+}
+
+func findTaint(taints []ccemodel.Taint, taint ccemodel.Taint) bool {
+	for _, t := range taints {
+		if t.Key == taint.Key {
+			return true
+		}
+	}
+	return false
 }
